@@ -1,0 +1,18 @@
+---
+clean:
+    - test:
+        input:
+            method: 'GET'
+            url: '/'
+        output:
+            status: 200
+    - test:
+        input:
+            url: '/?id=1'
+        output:
+            status: 200
+    - test:
+        input:
+        output:
+            status: 200
+...
