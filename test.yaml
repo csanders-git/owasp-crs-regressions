@@ -1,22 +1,44 @@
 ---
 clean:
     - test:
-        input:
+        - meta:
+            name: "Test 1"
+            id: 1
+            author: "Chaim Sanders"
+        - input:
+            protocol: 'http'
+            addr: 'www.chaimsanders.com'
+            port: '80'
             method: 'GET'
             url: '/'
             headers: [
-                useragent: 'xyz',
-                host: 'zyx'
+                host: 'chaimsanders.com',
+                user-agent: 'test',
+                cookie: True
             ]
-        output:
+        - output:
             status: 200
             savecookie: true
+
+        - input:
+            method: 'GET'
+            url: '/CHAIM'
+            headers: [
+                useragent: 'xyz',
+                host: 'zyx',
+                cookie: True
+            ]
+        - output:
+            status: 200
+            savecookie: true
+
+xss:
     - test:
-        input:
+        - input:
             url: '/?id=1'
-        output:
+        - output:
             status: 200
     - test:
-        input:
-        output:
+        - input:
+        - output:
             status: 200
