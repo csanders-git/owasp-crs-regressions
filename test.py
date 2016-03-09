@@ -35,11 +35,11 @@ class TestRequest(object):
         command = "curl %s%s \\%s" % (self.host,self.url,os.linesep)
         command += "-X %s \\%s" % (self.method, os.linesep)
         command += "--cookie %s \\%s" % (self.cookie, os.linesep)
-        #if(len(self.headers) != 0):
-        #    for headerName, headerValue in self.headers.iteritems():
+        if(len(self.headers) != 0):
+            for headerName, headerValue in self.headers.iteritems():
                 #TODO: Escape quotes in headername and headervalue
-        #        command += '--header "%s: %s" \\%s' % (headerName, headerValue, os.linesep)
-        #command = command[:-2]
+                command += '--header "%s: %s" \\%s' % (headerName, headerValue, os.linesep)
+        command = command[:-2]
         return command
 
     def rawHTTP(self):
@@ -68,12 +68,17 @@ class TestRequest(object):
         resp = s.send(prepared)
         print resp.status_code
 
+class TestResponse(object):
+    def __init__(self,method="GET"):
+        self.method = method
+        self.cookie = ""
+
 def returnError(errorString):
         errorString = str(errorString) + os.linesep
         sys.stderr.write(errorString)
         sys.exit(1)
 
-def extractTests(doc):
+def extractInputTests(doc):
     myTests = []
     # Iterate over our YAML sections
     for section,tests in doc.iteritems():
@@ -104,12 +109,33 @@ def extractTests(doc):
             requestArgs ["headers"] = headers
             try:
                 # Try to generate a request
-                myReq = TestRequest(**requestArgs);
+                myReq = TestRequest(**requestArgs)
             except TypeError:
                 # Almost for sure they passed an invalid name, check the args of Request
                 return returnError("An invalid argument was passed to the Request constructor, check your arugments " + str(requestArgs.keys()))
             myTests.append(myReq)
     return myTests
+
+def extractOutputTests(doc):
+    x = []
+    # Iterate over our YAML sections
+    for section,tests in doc.iteritems():
+        # For each section extract the tests
+        for test in tests:
+            try:
+                inputTestValues = test["test"]["output"]
+            except:
+                return returnError("No output was found, please specify at least an empty output for defaults")        
+            # From the YAML generate the constructor args
+            requestArgs = {}
+            headers = {}
+            # if we have an empty input create default constructor
+            if inputTestValues == None:
+                #myReq = TestRequest(**requestArgs)
+                continue
+            # Otherwise we have input values
+            for name,value in inputTestValues.iteritems():
+                print name,value
 
 def main():
     #TODO: allow for input of where directory is.
@@ -142,9 +168,10 @@ def main():
             return returnError(str(e))
         finally:
             fd.close()
-        myTests += extractTests(doc)
-        for i in myTests:
-            print i.genCurl()
+        myTests += extractInputTests(doc)
+        #for i in myTests:
+        #    print i.genCurl()
+        extractOutputTests(doc)
     #for i in myTests:
     #    i.rawHTTP()
 

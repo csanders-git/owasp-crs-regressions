@@ -10,6 +10,7 @@ clean:
             ]
         output:
             status: 200
+            savecookie: true
     - test:
         input:
             url: '/?id=1'
