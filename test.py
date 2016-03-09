@@ -75,40 +75,33 @@ def returnError(errorString):
 
 def extractTests(doc):
     myTests = []
-    # Iterate over our YAML sections
-    for section,tests in doc.iteritems():
-        # For each section extract the tests
-        for test in tests:
+    for section,tests in doc.iteritems(): # Iterate over YAML sections.
+        for test in tests: # Extract test cases from Yaml file.
             try:
                 inputTestValues = test["test"]["input"]
             except:
                 return returnError("No input was found, please specify at least an empty input for defaults")        
-            # From the YAML generate the constructor args
-            requestArgs = {}
-            headers = {}
-            # if we have an empty input create default constructor
+            requestArgs = {} # Generate constructor args.
+            headers = {} # Create default constructors...
             if inputTestValues == None:
                 myReq = TestRequest(**requestArgs)
                 continue
-            # Otherwise we have input values
-            for name,value in inputTestValues.iteritems():
-                # Check if we get a header if so make it into a dict
-                if(name == "headers"):
-                    # Process yaml list of dicts into just a dict
-                    for header in value:
+            for name,value in inputTestValues.iteritems(): # Otherwise we have input values.
+                if(name == "headers"): # Check if we get a header if so make it into a dict.
+                    for header in value: # Process YAML list of dicts into just a dictionary.
                         header = header.popitem()
                         headers[header[0]] = header[1]
                 else:
                     requestArgs[name] = value
-            # Now that our headers is populated push it 
-            requestArgs ["headers"] = headers
+            requestArgs ["headers"] = headers # Now that our headers is populated, push it!
             try:
-                # Try to generate a request
-                myReq = TestRequest(**requestArgs);
+                myReq = TestRequest(**requestArgs) # Try to generate a request.
             except TypeError:
                 # Almost for sure they passed an invalid name, check the args of Request
-                return returnError("An invalid argument was passed to the Request constructor, check your arugments " + str(requestArgs.keys()))
+                return returnError("An invalid argument was passed to the Request constructor, \
+                                    check your arugments " + str(requestArgs.keys()))
             myTests.append(myReq)
+
     return myTests
 
 def main():
