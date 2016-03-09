@@ -39,7 +39,9 @@ class Test(object):
                 subTest.genCurl()
 
 class TestRequest(object):
-    def __init__(self,protocol="http",addr="www.example.com",port=80,method="GET",url="/",version="HTTP/1.1",headers={},data="",status=200):
+    def __init__(self,rawRequest="", protocol="http",addr="www.example.com",port=80,method="GET",url="/",version="HTTP/1.1",headers={},data="",status=200):
+
+        self.rawRequest = rawRequest
         try:
             port = int(port)
         except ValueError:
@@ -60,8 +62,13 @@ class TestRequest(object):
     def getType(self):
         return "Request"
 
+
     def printTest(self):
         print self.url
+        #for ch in request:
+        #    print ord(ch),
+        #    if(ord(ch)==10):
+        #        print    
 
     def setRequestURI(self):
         print "XYZ"
@@ -97,23 +104,30 @@ class TestRequest(object):
         except socket.error as msg:
             return returnError(msg)
         CRLF = "\r\n"
-        request = '#method# #url##version#%s#headers#%s#data#' % (CRLF,CRLF)
-        request = string.replace(request,"#method#",self.method)
-        # We add a space after here to account for HEAD requests with no url
-        request = string.replace(request,"#url#",self.url+" ")
-        request = string.replace(request,"#version#",self.version)
-        # Expand out our headers into a string
-        headers = ""
-        if self.headers != {}:
-            for hName,hValue in self.headers.iteritems():
-                headers += str(hName)+": "+str(hValue) + str(CRLF)
-        request = string.replace(request,"#headers#",headers)
-        # If we have data append it
-        if(self.data != ""):
-            data = str(self.data) + str(CRLF)
-            request = string.replace(request,"#data#",data)
+        # If they requested raw HTTP just provide it
+        if(self.rawRequest != ""):
+            request = self.rawRequest
+            request = request.replace("\n",CRLF)
+            request += CRLF  
+        # Otherwise build our build our request
         else:
-            request = string.replace(request,"#data#","")
+            request = '#method# #url##version#%s#headers#%s#data#' % (CRLF,CRLF)
+            request = string.replace(request,"#method#",self.method)
+            # We add a space after here to account for HEAD requests with no url
+            request = string.replace(request,"#url#",self.url+" ")
+            request = string.replace(request,"#version#",self.version)
+            # Expand out our headers into a string
+            headers = ""
+            if self.headers != {}:
+                for hName,hValue in self.headers.iteritems():
+                    headers += str(hName)+": "+str(hValue) + str(CRLF)
+            request = string.replace(request,"#headers#",headers)
+            # If we have data append it
+            if(self.data != ""):
+                data = str(self.data) + str(CRLF)
+                request = string.replace(request,"#data#",data)
+            else:
+                request = string.replace(request,"#data#","")
         self.sock.send(request)
         #make socket non blocking
         self.sock.setblocking(0)      

@@ -42,3 +42,15 @@ xss:
         - input:
         - output:
             status: 200
+    - test:
+        - input:
+            protocol: 'http'
+            addr: 'www.chaimsanders.com'
+            port: '80'
+            rawRequest: |
+                GET / HTTP/1.1 
+                Host: www.chaimsanders.com
+                User-Agent: test
+
+        - output:
+            status: 200
