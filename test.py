@@ -1,3 +1,7 @@
+#!/usr/bin/python
+'''
+    Authors: Chaim Sanders, Jared Stroud 
+'''
 import yaml # We reqire pyYaml
 import sys
 import os
@@ -18,7 +22,7 @@ class TestRequest(object):
         print "XYZ"
 
     def setHeaders(self):
-        print "XYZ"
+        self.headers = "X"
         
     # Cookie can be set in headers or here.
     def setCookie(self):
@@ -31,19 +35,24 @@ class TestRequest(object):
         command = "curl %s%s \\%s" % (self.host,self.url,os.linesep)
         command += "-X %s \\%s" % (self.method, os.linesep)
         command += "--cookie %s \\%s" % (self.cookie, os.linesep)
-        if(len(self.headers) != 0):
-            for headerName, headerValue in self.headers.iteritems():
+        #if(len(self.headers) != 0):
+        #    for headerName, headerValue in self.headers.iteritems():
                 #TODO: Escape quotes in headername and headervalue
-                command += '--header "%s: %s" \\%s' % (headerName, headerValue, os.linesep)
-        command = command[:-2]
+        #        command += '--header "%s: %s" \\%s' % (headerName, headerValue, os.linesep)
+        #command = command[:-2]
         return command
 
     def rawHTTP(self):
+        try:
+            self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            self.sock.settimeout(15)
+            self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            self.sock.connect((self.addr, self.port))
+            #s.setblocking(0)
+        except socket.error as msg:
+            return returnError(msg)
         CRLF = "\r\n"
-        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        s.settimeout(15)
-        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        #s.setblocking(0)
+        
         s.connect(("www.chaimsanders.com", 80))
         s.send("GET / HTTP/1.1%sHost: chaimsanders.com%sUser-Agent: test%s%s" % (CRLF,CRLF,CRLF,CRLF))
         data = (s.recv(1000000))
@@ -76,13 +85,23 @@ def extractTests(doc):
                 return returnError("No input was found, please specify at least an empty input for defaults")        
             # From the YAML generate the constructor args
             requestArgs = {}
+            headers = {}
             # if we have an empty input create default constructor
             if inputTestValues == None:
                 myReq = TestRequest(**requestArgs)
                 continue
             # Otherwise we have input values
             for name,value in inputTestValues.iteritems():
-                requestArgs[name] = value
+                # Check if we get a header if so make it into a dict
+                if(name == "headers"):
+                    # Process yaml list of dicts into just a dict
+                    for header in value:
+                        header = header.popitem()
+                        headers[header[0]] = header[1]
+                else:
+                    requestArgs[name] = value
+            # Now that our headers is populated push it 
+            requestArgs ["headers"] = headers
             try:
                 # Try to generate a request
                 myReq = TestRequest(**requestArgs);
@@ -95,6 +114,7 @@ def extractTests(doc):
 def main():
     #TODO: allow for input of where directory is.
     filePath = "."
+    myTests = []
     try:
         # Check if the path exists and we have read access
         if(os.path.exists(filePath) and os.access(filePath,os.R_OK)):
@@ -122,9 +142,8 @@ def main():
             return returnError(str(e))
         finally:
             fd.close()
-        myTests = extractTests(doc)
+        myTests += extractTests(doc)
         for i in myTests:
-            print
             print i.genCurl()
     #for i in myTests:
     #    i.rawHTTP()
