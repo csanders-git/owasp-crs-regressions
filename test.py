@@ -24,6 +24,12 @@ class Test(object):
 
 
     def runTests(self):
+        '''
+            Name: runTests
+            Description: Run tests extracted from YAML.
+            Parameters: None.
+            Return: Nothing.
+        '''
         print "Running Test", str(self.meta)
         httpOut = ""
         domain = ""
@@ -44,18 +50,24 @@ class Test(object):
 
 
     def getCurlCommands(self):
+        '''
+            Name: getCurlCommands
+            Parameters: None.
+            Return: Result of gencurl
+        '''
         for subTest in self.subTests:
             if(subTest.getType() == "Request"):
-                subTest.genCurl()
+                return subTest.genCurl()
 
 class TestRequest(object):
+
     def __init__(self,rawRequest="", protocol="http",addr="www.example.com",port=80,method="GET",url="/",version="HTTP/1.1",headers={},data="",status=200):
 
-        self.rawRequest = rawRequest
         try:
             port = int(port)
         except ValueError:
             returnError("An invalid port value was entered in our YAML")
+
         self.protocol = protocol
         self.host = addr
         self.port = int(port)
@@ -64,14 +76,14 @@ class TestRequest(object):
         self.data = data
         self.headers = headers
         self.version = version
-        # if cookie is true then we need to check the cookiejar
-        if('cookie' in headers.keys()):
+        self.rawRequest = rawRequest
+
+        if('cookie' in headers.keys()): # If cookie is true, we need to check the cookiejar.
             if(headers['cookie']==True):
                 pass
 
     def getType(self):
         return "Request"
-
 
     def printTest(self):
         print self.url
