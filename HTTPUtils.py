@@ -35,7 +35,7 @@ class RawHTTPUtils():
     def __init__(self, address, port):
         self.addr = str(address)
         self.port = int(port)
-
+        self.buff = 4096
         try:
             self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             self.sock.connect((self.addr, self.port))
@@ -50,16 +50,23 @@ class RawHTTPUtils():
             Parameters: 
                 data: URI
                 host: Originating host
+
+            Return: Contents of GET response.
         '''
         self.sock.send('GET %s HTTP/1.1\r\nHost: %s\r\n\r\n' % (data, host))
+        return self.sock.recv(self.buff)
+        self.sock.close()
 
     def rawHead(self, host="example.com"):
         '''
             Name: rawHead
             Description: rawHead request using sockets.
             Parameters: None.
+            Return: Result of HEAD request.
         '''
         self.sock.send("HEAD HTTP/1.1\r\nHost: %s\r\n\r\n" % host)
+        return self.sock.recv(self.buff)
+        self.sock.close()
 
     def rawPost(self, PostURI="/", contentType="Accept: text/plain", contentLen= "9001", bodyContents="Username:Testing", host="example.com"):
         '''
@@ -71,6 +78,7 @@ class RawHTTPUtils():
                 contentLen: Specify content length.
                 bodyContents: Specify body payload of HTTP POST request.
                 host: Specify origin host.
+            Return: Response contents of HTTP POST.
         '''
 
         headers = """\r
@@ -93,12 +101,15 @@ class RawHTTPUtils():
         payload = header_bytes +  body_bytes
         self.sock.sendall(payload)
 
+        return self.sock.recv(self.buff)
+        self.sock.close()
+
 if __name__ == "__main__":
     '''
         Test data generation
     '''
     url = "localhost" 
     req = RawHTTPUtils(url, 8000)
-    #req.rawGet()
-    #req.rawHead(host="chaimsanders.com")
-    req.rawPost("sleep")
+    #req.rawGet("/", "localhost")
+    #print(req.rawHead(host="chaimsanders.com"))
+    #print(req.rawPost(host="localhost"))
