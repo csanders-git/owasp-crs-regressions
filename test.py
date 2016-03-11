@@ -148,7 +148,7 @@ class TestRequest(object):
             self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             # Check if SSL
             if(self.protocol == "https"):
-                self.sock = ssl.wrap_socket(self.sock, ssl_version=ssl.PROTOCOL_SSLv23, ciphers="ADH-AES256-SHA")
+                self.sock = ssl.wrap_socket(self.sock, ssl_version=ssl.PROTOCOL_SSLv23, ciphers="ADH-AES256-SHA:ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:AES128-GCM-SHA256:AES128-SHA256:HIGH:")
             self.sock.connect((self.host, self.port))
         except socket.error as msg:
             return returnError(msg)
