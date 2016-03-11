@@ -7,10 +7,10 @@ clean:
             author: "Chaim Sanders"
         - input:
             protocol: 'http'
-            addr: 'www.chaimsanders.com'
+            addr: 'localhost'
             port: '80'
             method: 'GET'
-            url: '/'
+            url: '/t.php'
             headers: [
                 host: 'chaimsanders.com',
                 user-agent: 'test',
@@ -18,7 +18,7 @@ clean:
             ]
         - output:
             status: 200
-            savecookie: true
+            saveCookie: true
 
         - input:
             method: 'GET'
@@ -29,14 +29,32 @@ clean:
                 cookie: True
             ]
         - output:
+            status: 202
+            saveCookie: true
+
+        - input:
+            protocol: 'http'
+            addr: 'localhost'
+            port: '80'
+            method: 'GET'
+            url: '/t.php'
+        - output:
             status: 200
-            savecookie: true
+            saveCookie: true
 
 xss:
     - test:
+        - meta:
+            name: "Test 2"
+            id: 2
+            author: "Chaim Sanders"
         - input:
-            url: '/?id=1'
+            protocol: 'http'
+            addr: 'localhost'
+            port: '80'
+            url: '/t.php'
         - output:
+            saveCookie: true
             status: 200
     - test:
         - input:

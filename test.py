@@ -30,7 +30,11 @@ class Test(object):
             Parameters: None.
             Return: Nothing.
         '''
-        print "Running Test", str(self.meta)
+        print "Running",
+        try:
+            print str(self.meta["name"]) 
+        except KeyError:
+            print "Test Unnamed"
         httpOut = ""
         domain = ""
         for subTest in self.subTests: 
@@ -62,7 +66,9 @@ class Test(object):
 class TestRequest(object):
 
     def __init__(self,rawRequest="", protocol="http",addr="www.example.com",port=80,method="GET",url="/",version="HTTP/1.1",headers={},data="",status=200):
-
+        if(headers == {}):
+            headers["Host"] = addr
+            headers["User-Agent"] = "OWASP CRS Regression Tests"
         try:
             port = int(port)
         except ValueError:
@@ -116,57 +122,23 @@ class TestRequest(object):
         command = command[:-2]
         return command
 
-    def checkForCookie(self,cookieJar,originDomain):
-        #http://bayou.io/draft/cookie.domain.html
-        # Check if our originDomain is an IP
-        originIsIP = True
-        try:
-            IP(originDomain)
-        except:
-            originIsIP = False
-
-        # Check if a domain is specified
+    def findCookie(self,cookieJar,originDomain):
         for cookie in cookieJar:
             cookieDomain = cookie[1]
-            print cookie[0].output()
             for cookieName, cookieMorsals in cookie[0].iteritems():
-                # If the coverdomain is not set we only apply to origin domain
-                if(cookieMorsals['domain'] == "" or originIsIP == True):
-                    if(cookieDomain == originDomain):
-                        print "GOT COOKIE"
-                    else:
-                        print "Not a cookie"
-                # If the coverdomain is set it can be any subdomain
+                coverDomain = cookieMorsals['domain']
+                if coverDomain == "":
+                    if(originDomain == cookie[1]):
+                        return cookie[0]
                 else:
-                    coverDomain = cookieMorsals['domain']
-                    # strip leading dots
-                    # TODO: Find all leading dots not just first one
-                    if(coverDomain[0] == '.'):
-                        coverDomain = coverDomain[1:]
-                    # Logic taken from cookielib but really we need public suffix list
-                    i = coverDomain.rfind(".")
-                    sld = coverDomain[0:i]
-                    tld = coverDomain[i+1:]
+                    # Domain match algorithm 
+                    B = coverDomain.lower()
+                    HDN = originDomain.lower()
+                    NEnd = HDN.find(B)
+                    if(NEnd != False):
+                        return cookie[0]
+        return False
 
-                    # If we find a 'public suffix' ignore coverDomain
-                    if sld.lower() in ("co", "ac", "com", "edu", "org", "net",
-                            "gov", "mil", "int", "aero", "biz", "cat", "coop",
-                            "info", "jobs", "mobi", "museum", "name", "pro",
-                            "travel", "eu") and len(tld) == 2:
-                        if(cookieDomain == originDomain):
-                            print "GOT COOKIE"
-                        else:
-                            print "note cookie"
-                    # Generate Origin Domain TLD
-                    i = originDomain.rfind(".")
-                    oTLD = originDomain[i+1:]
-                    # if our cover domain is the origin TLD we ignore
-                    if(coverDomain == oTLD):
-                        if(cookieDomain == originDomain):
-                            print "GOT COOKIE"
-                        else:
-                            print "note cookie"
-                               
 
     def rawHTTP(self,cookieJar):
         try:
@@ -189,12 +161,18 @@ class TestRequest(object):
             # We add a space after here to account for HEAD requests with no url
             request = string.replace(request,"#url#",self.url+" ")
             request = string.replace(request,"#version#",self.version)
+            # Check if we have a cookie that needs using
+            cookie = self.findCookie(cookieJar,self.host)
+            # If the user has requested a tracked cookie and we have one set it
+            if( 'Cookie' in self.headers.keys()):
+                if(cookie != False and self.headers['Cookie'] == True):
+                    print "\tAdded cookie from previous request"
+                    self.headers["Cookie"] = cookie.output() 
             # Expand out our headers into a string
             headers = ""
             if self.headers != {}:
                 for hName,hValue in self.headers.iteritems():
                     headers += str(hName)+": "+str(hValue) + str(CRLF)
-            self.checkForCookie(cookieJar,self.host)
             request = string.replace(request,"#headers#",headers)
             # If we have data append it
             if(self.data != ""):
@@ -255,29 +233,78 @@ class TestResponse(object):
     def setRawData(self,data):
         self.rawData = data
 
-    def parseCookie(self,c):
-        cook = c.output()
-        #cookie = r'restricted_cookie=cookie_value; Domain=PyMOTW; Path=/sub/path; secure'
-        #cook = cook.split(';')
-        #for element in cook.split(":")
+    def checkForCookie(self,cookie,originDomain):
+        #http://bayou.io/draft/cookie.domain.html
+        # Check if our originDomain is an IP
+        originIsIP = True
+        try:
+            IP(originDomain)
+        except:
+            originIsIP = False
+
+        for cookieName, cookieMorsals in cookie.iteritems():
+            # If the coverdomain is blank or the domain is an IP set the domain to be the origin
+            if(cookieMorsals['domain'] == "" or originIsIP == True):
+                # We want to always add a domain so it's easy to parse later
+                return (cookie,originDomain)
+            # If the coverdomain is set it can be any subdomain
+            else:
+                coverDomain = cookieMorsals['domain']
+                # strip leading dots
+                # Find all leading dots not just first one
+                # http://tools.ietf.org/html/rfc6265#section-4.1.2.3
+                firstNonDot = 0
+                for i in range(len(coverDomain)):
+                    if(coverDomain[i] != '.'):
+                        firstNonDot = i
+                        break
+                coverDomain = coverDomain[i:]
+                # We must parse the coverDomain to make sure its not in the suffix list
+                with open('public_suffix_list.dat','r') as f:
+                    for line in f:
+                        if line[:2] == "//" or line[0] == " " or line[0].strip() == "":
+                            continue
+                        if coverDomain == line.strip():
+                            return False
+                # Generate Origin Domain TLD
+                i = originDomain.rfind(".")
+                oTLD = originDomain[i+1:]
+                # if our cover domain is the origin TLD we ignore
+                # Quick sanity check
+                if(coverDomain == oTLD):
+                    return False
+                # check if our coverdomain is a subset of our origin domain
+                # Domain match (case insensative)
+                if coverDomain == originDomain:
+                    return (cookie,originDomain)
+                # Domain match algorithm 
+                B = coverDomain.lower()
+                HDN = originDomain.lower()
+                NEnd = HDN.find(B)
+                if(NEnd != False):
+                    N = HDN[0:NEnd]
+                    # Modern browsers don't care about dot
+                    if(N[-1]=='.'):
+                        N = N[0:-1]
+                else:
+                    # We don't have an address of the form 
+                    return False
+                if N == "":
+                    return False
+                # Doesn't seem to be applicable anymore
+                #if('.' in N):
+                #    print "FAIL3"
+                #    sys.exit()
+                # cookieMorsals['domain'] = coverDomain 
+                return (cookie,originDomain)
 
 
-
-#expires
-#path
-#comment
-#domain
-#max-age
-#secure
-#version
-#httponly
 
     def parseHTTP(self,cookieJar,originDomain):
         response = self.rawData.split("\r\n")
         (version,status,statusMsg) = response[0].split(" ",2)
-        print self.status,"-",status
-        if(self.status != status):
-            print "FAILED"
+        if(int(self.status) != int(status)):
+            print "\tTest Failed: " + str(self.status),"-",str(status)
         # We start at line 1 because line zero is our status
         currentLine = 1
         headers = {}
@@ -286,101 +313,19 @@ class TestResponse(object):
             (hName,hValue) = response[currentLine].split(":",1)
             headers[hName] = hValue.strip()
             currentLine +=1
-        # Append our given cookie
-        #cook = "Test=test_value;expires=Sat, 01-Jan-2000 00:00:00 GMT; path=/;"
-        #cook = 'expires_at_time=cookie_value; expires=Sat, 14 Feb 2009 19:30:14'
-        cook = r'restricted_cookie=cookie_value; Domain=co.uk; Path=/sub/path; secure'
-        try:
-            cookie = Cookie.SimpleCookie() 
-            cookie.load(cook)
-            #print cookie.output()
-        except Cookie.CookieError:
-            print "ERROR"
-        cookieJar.append((cookie,originDomain))
-
-
-
-
-
-        # only the domain matters not the proto or port
-            #if(hName == "Set-Cookie"):
-            #Set-Cookie:
-        '''
-        cookie = 'encoded_value_cookie="value"; Comment=Notice that this cookie value has escaped quotes'
-        
-        
-        
-
-        HTTP_COOKIE = r'restricted_cookie=cookie_value; Domain=PyMOTW; Path=/sub/path; secure'
-        try:
-            cookie = Cookie.SimpleCookie() 
-            cookie.load(HTTP_COOKIE)
-        except Cookie.CookieError:
-            print "ERROR"
-        cookieJar.append(cookie)
-
-
-'''
-        #print 'cookie = ', cookie['restricted_cookie']['domain']  
-        #cookie = 'with_max_age="expires in 5 minutes"; Max-Age=300'
-        #HTTP_COOKIE = r'integer=5; string_with_quotes="He said, \"Hello, World!\""'
-        
-        #cookie = cookielib.Cookie(version=0, name='OLRProduct',
-        #                          value='OLRProduct=xyz|',
-        #                          port=None, port_specified=False,
-        #                          domain='.dell.com',
-        #                          domain_specified=True,
-        #                          domain_initial_dot=True, path='/',
-        #                          path_specified=True, secure=False,
-        #                          expires=None, discard=True, comment=None,
-        #                          comment_url=None, rest={'HttpOnly': None})
-        #cookieJar.set_cookie(cookie)
-        #for cookie in cookieJar:
-        #    print('%s --> %s'%(cookie.name,cookie.value))
-        #import urllib2
-        #print help(cookieJar._cookies_for_domain)
-        #req = urllib2.Request("dell.com")
-
-        #print cookieJar.read_all_cookies()
-
-        #cookies_by_path = self.cookies.get(domain)
-        #if cookies_by_path is None:
-        #    return []
-
-        #cookies = []
-        #for path in cookies_by_path.keys():
-        #    if not self.policy.path_return_ok(path, request, unverifiable):
-        #        continue
-        #    for name, cookie in cookies_by_path[path].items():
-        #        if not self.policy.return_ok(cookie, request, unverifiable):
-        #            debug("   not returning cookie")
-        #            continue
-        #        debug("   it's a match")
-        #        cookies.append(cookie)
-
-
-        #print
-        #print 'From load():'
-        #c = Cookie.SimpleCookie()
-        #c.load(HTTP_COOKIE)
-        #print c.output("Domain")
-        #self.parseCookie(c)
-        #print c
-        #try:
-        #    c = Cookie.SimpleCookie(cookie)
-        #except Cookie.CookieError:
-        #    print "ERROR"
-        #print c.keys()
-        #cookieJar.set_cookie(c)
-        #print c.output()
-                #cookie = cookielib.Cookie(version=0, name='PON', value="xxx.xxx.xxx.111", expires=365, port=None, port_specified=False, domain='xxxx', domain_specified=True, domain_initial_dot=False, path='/', path_specified=True, secure=True, discard=False, comment=None, comment_url=None, rest={'HttpOnly': False}, rfc2109=False)
-                #cookiejar.set_cookie(cookie)
-            #    Set-Cookie: sessionToken=abc123; Expires=Wed, 09 Jun 2021 10:18:14 GMT
-            #    ck = cookielib.Cookie(version=0, name='Name', value='1', port=None, port_specified=False, domain='www.example.com', domain_specified=False, domain_initial_dot=False, path='/', path_specified=True, secure=False, expires=None, discard=True, comment=None, comment_url=None, rest={'HttpOnly': None}, rfc2109=False)
-            #jar=cookielib.CookieJar()
-            #jar.extract_cookies(self.rawData, self.request)
-
-
+            # If there is a set-cookie header try processing it.
+            if(hName == "Set-Cookie" and self.saveCookie==True):
+                hValue = "Test=test_value;expires=Sat, 01-Jan-2000 00:00:00 GMT; domain=chaimsanders.com; path=/;"
+                try:
+                    cookie = Cookie.SimpleCookie() 
+                    cookie.load(hValue.lstrip())
+                except Cookie.CookieError:
+                    return returnError("There was an error processing the cookie into a SimpleCookie")
+                # if the checkForCookie is invalid then we don't save it
+                if(self.checkForCookie(cookie,originDomain) == False):
+                    return returnError("An invalid cookie was specified")
+                else:
+                    cookieJar.append((cookie,originDomain))
 
     def getType(self):
         return "Response"
@@ -403,7 +348,7 @@ def extractInputTests(inputTestValues):
         if(name == "headers"): # Check if we get a header if so make it into a dict.
             for header in value: # Process YAML list of dicts into just a dictionary.
                 header = header.popitem()
-                headers[header[0]] = header[1]
+                headers[header[0].title()] = header[1]
         else:
             requestArgs[name] = value
     requestArgs ["headers"] = headers # Now that our headers is populated, push it!
@@ -435,7 +380,7 @@ def extractTests (doc):
                     testData.append(extractInputTests(inputTestValues))
                 elif('output' in transactions.keys()):
                     outputTestValues = transactions["output"]
-                    testData.append(extractOutputTests(inputTestValues))
+                    testData.append(extractOutputTests(outputTestValues))
                 elif('meta' in transactions.keys()):
                     metaData = transactions["meta"]
                 else:  
@@ -454,18 +399,17 @@ def extractTests (doc):
             myTests.append(myTest)
     return myTests
 
-def extractOutputTests(inputTestValues):
+def extractOutputTests(outputTestValues):
     x = []
     # From the YAML generate the constructor args
     responseArgs = {}
     # if we have an empty input create default constructor
-    if inputTestValues == None:
+    if outputTestValues == None:
         myRes = TestResponse(**responseArgs)
         return myRes
     # Otherwise we have input values
-    for name,value in inputTestValues.iteritems():
-        #print name,value
-        pass
+    for name,value in outputTestValues.iteritems():
+        responseArgs[name] = value
     try:
         myRes = TestResponse(**responseArgs) # Try to generate a request.
         return myRes
