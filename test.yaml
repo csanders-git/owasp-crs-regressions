@@ -57,7 +57,15 @@ xss:
             saveCookie: true
             status: 200
     - test:
+        - meta:
+            name: "Test 3"
+            id: 3
+            author: "Chaim Sanders"
         - input:
+            protocol: 'https'
+            addr: 'reddit.com'
+            port: '443'
+            url: '/'
         - output:
             status: 200
     - test:

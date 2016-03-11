@@ -13,6 +13,7 @@ import cookielib
 import Cookie
 import errno
 import logging
+import ssl
 from IPy import IP
 
 # We use tests to  persist things that must exist between tests
@@ -145,6 +146,9 @@ class TestRequest(object):
             self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             self.sock.settimeout(5)
             self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            # Check if SSL
+            if(self.protocol == "https"):
+                self.sock = ssl.wrap_socket(self.sock, ssl_version=ssl.PROTOCOL_SSLv23, ciphers="ADH-AES256-SHA")
             self.sock.connect((self.host, self.port))
         except socket.error as msg:
             return returnError(msg)
