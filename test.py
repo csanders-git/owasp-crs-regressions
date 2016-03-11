@@ -8,11 +8,8 @@ import os
 import socket
 import time
 import string
-import requests
-import cookielib
 import Cookie
 import errno
-import logging
 import ssl
 from IPy import IP
 
