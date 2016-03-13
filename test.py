@@ -489,15 +489,13 @@ def parseArgs():
                        required=False, help='WAF to initiate  (default: ModSecurity)')
     args = parser.parse_args()
     if args.waf.lower() not in get_files("wafs"):
-        pluglist = "\n\t".join(get_files("wafs"))
-            
+        pluglist = "\n\t".join(get_files("wafs"))  
         return returnError("There is no plugin for the WAF you specified, please choose an existing plugin or try using the generic plugin. \nYour available WAF plugins are:\n\t" + pluglist)
     return args
 
 
 def main():
     myTests = []
-    # TODO: allow for input of where directory is. argparse?
     args = parseArgs()
     wafClass = loadWAFPlugin(args.waf)
     ourWAF = wafClass()
