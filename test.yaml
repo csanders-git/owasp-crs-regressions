@@ -7,7 +7,7 @@ clean:
             author: "Chaim Sanders"
         - input:
             protocol: 'http'
-            addr: 'localhost'
+            addr: 'www.digg.com'
             port: '80'
             method: 'GET'
             url: '/t.php'
@@ -50,7 +50,7 @@ xss:
             author: "Chaim Sanders"
         - input:
             protocol: 'http'
-            addr: 'localhost'
+            addr: 'www.cnn.com'
             port: '80'
             url: '/t.php'
         - output:
@@ -62,7 +62,7 @@ xss:
             id: 3
             author: "Chaim Sanders"
         - input:
-            protocol: 'https'
+            protocol: 'http'
             addr: 'reddit.com'
             port: '443'
             url: '/'

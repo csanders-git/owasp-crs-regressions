@@ -1,8 +1,8 @@
 #!/usr/bin/python
 '''
-    Authors: Chaim Sanders, Jared Stroud 
+    Authors: Chaim Sanders, Jared Stroud
 '''
-import yaml # We reqire pyYaml
+import yaml  # We reqire pyYaml
 import sys
 import os
 import socket
@@ -11,15 +11,19 @@ import string
 import Cookie
 import errno
 import ssl
+import argparse
 from IPy import IP
+import importlib
+import inspect  # For iterating through class names
+import wafs.waf
+
 
 # We use tests to  persist things that must exist between tests
 class Test(object):
-    def __init__(self,subTests,metaData):
+    def __init__(self, subTests, metaData):
         self.subTests = subTests
         self.meta = metaData
         self.cookieJar = []
-
 
     def runTests(self):
         '''
@@ -30,16 +34,15 @@ class Test(object):
         '''
         print "Running",
         try:
-            print str(self.meta["name"]) 
+            print str(self.meta["name"])
         except KeyError:
             print "Test Unnamed"
         httpOut = ""
         domain = ""
-        for subTest in self.subTests: 
+        for subTest in self.subTests:
             if(subTest.getType() == "Request"):
                 httpOut = ""
-                request = ""
-                domain  = ""
+                domain = ""
                 httpOut = subTest.rawHTTP(self.cookieJar)
                 domain = subTest.host
 
@@ -48,8 +51,7 @@ class Test(object):
                     return returnError("Seems like there was no HTTP response")
                 # Set the previous requests response data for our response
                 subTest.setRawData(httpOut)
-                subTest.parseHTTP(self.cookieJar,domain)
-
+                subTest.parseHTTP(self.cookieJar, domain)
 
     def getCurlCommands(self):
         '''
@@ -61,9 +63,18 @@ class Test(object):
             if(subTest.getType() == "Request"):
                 return subTest.genCurl()
 
+
 class TestRequest(object):
 
-    def __init__(self,rawRequest="", protocol="http",addr="www.example.com",port=80,method="GET",url="/",version="HTTP/1.1",headers={},data="",status=200):
+    def __init__(self, rawRequest="",
+                 protocol="http",
+                 addr="www.example.com",
+                 port=80, method="GET",
+                 url="/",
+                 version="HTTP/1.1",
+                 headers={},
+                 data="",
+                 status=200):
         if(headers == {}):
             headers["Host"] = addr
             headers["User-Agent"] = "OWASP CRS Regression Tests"
@@ -81,9 +92,9 @@ class TestRequest(object):
         self.headers = headers
         self.version = version
         self.rawRequest = rawRequest
-
-        if('cookie' in headers.keys()): # If cookie is true, we need to check the cookiejar.
-            if(headers['cookie']==True):
+        # If cookie is true, we need to check the cookiejar.
+        if('cookie' in headers.keys()):
+            if(headers['cookie'] is True):
                 pass
 
     def getType(self):
@@ -91,17 +102,17 @@ class TestRequest(object):
 
     def printTest(self):
         print self.url
-        #for ch in request:
+        # for ch in request:
         #    print ord(ch),
         #    if(ord(ch)==10):
-        #        print    
+        #        print
 
     def setRequestURI(self):
         print "XYZ"
 
     def setHeaders(self):
         self.headers = "X"
-        
+
     # Cookie can be set in headers or here.
     def setCookie(self):
         print "XYZ"
@@ -110,35 +121,33 @@ class TestRequest(object):
         return self.rawRequest
 
     def genCurl(self):
-        command = "curl %s%s \\%s" % (self.host,self.url,os.linesep)
+        command = "curl %s%s \\%s" % (self.host, self.url, os.linesep)
         command += "-X %s \\%s" % (self.method, os.linesep)
         command += "--cookie %s \\%s" % (self.cookie, os.linesep)
         if(len(self.headers) != 0):
             for headerName, headerValue in self.headers.iteritems():
-                #TODO: Escape quotes in headername and headervalue
+                # TODO: Escape quotes in headername and headervalue
                 command += '--header "%s: %s" \\%s' % (headerName, headerValue, os.linesep)
         command = command[:-2]
         return command
 
-    def findCookie(self,cookieJar,originDomain):
+    def findCookie(self, cookieJar, originDomain):
         for cookie in cookieJar:
-            cookieDomain = cookie[1]
             for cookieName, cookieMorsals in cookie[0].iteritems():
                 coverDomain = cookieMorsals['domain']
                 if coverDomain == "":
                     if(originDomain == cookie[1]):
                         return cookie[0]
                 else:
-                    # Domain match algorithm 
+                    # Domain match algorithm
                     B = coverDomain.lower()
                     HDN = originDomain.lower()
                     NEnd = HDN.find(B)
-                    if(NEnd != False):
+                    if(NEnd is not False):
                         return cookie[0]
         return False
 
-
-    def rawHTTP(self,cookieJar):
+    def rawHTTP(self, cookieJar):
         try:
             self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             self.sock.settimeout(5)
@@ -153,60 +162,59 @@ class TestRequest(object):
         # If they requested raw HTTP just provide it
         if(self.rawRequest != ""):
             request = self.rawRequest
-            request = request.replace("\n",CRLF)
-            request += CRLF  
+            request = request.replace("\n", CRLF)
+            request += CRLF
         # Otherwise build our build our request
         else:
-            request = '#method# #url##version#%s#headers#%s#data#' % (CRLF,CRLF)
-            request = string.replace(request,"#method#",self.method)
+            request = '#method# #url##version#%s#headers#%s#data#' % (CRLF, CRLF)
+            request = string.replace(request, "#method#", self.method)
             # We add a space after here to account for HEAD requests with no url
-            request = string.replace(request,"#url#",self.url+" ")
-            request = string.replace(request,"#version#",self.version)
+            request = string.replace(request, "#url#", self.url+" ")
+            request = string.replace(request, "#version#", self.version)
             # Check if we have a cookie that needs using
-            cookie = self.findCookie(cookieJar,self.host)
+            cookie = self.findCookie(cookieJar, self.host)
             # If the user has requested a tracked cookie and we have one set it
-            if( 'Cookie' in self.headers.keys()):
-                if(cookie != False and self.headers['Cookie'] == True):
+            if('Cookie' in self.headers.keys()):
+                if(cookie is not False and self.headers['Cookie'] is True):
                     print "\tAdded cookie from previous request"
-                    self.headers["Cookie"] = cookie.output() 
+                    self.headers["Cookie"] = cookie.output()
             # Expand out our headers into a string
             headers = ""
             if self.headers != {}:
-                for hName,hValue in self.headers.iteritems():
+                for hName, hValue in self.headers.iteritems():
                     headers += str(hName)+": "+str(hValue) + str(CRLF)
-            request = string.replace(request,"#headers#",headers)
+            request = string.replace(request, "#headers#", headers)
             # If we have data append it
             if(self.data != ""):
                 data = str(self.data) + str(CRLF)
-                request = string.replace(request,"#data#",data)
+                request = string.replace(request, "#data#", data)
             else:
-                request = string.replace(request,"#data#","")
+                request = string.replace(request, "#data#", "")
         # Update our raw request with the generated one
         self.rawRequest = request
         self.sock.send(request)
-        #make socket non blocking
-        self.sock.setblocking(0)      
-        #total data partwise in an array
-        ourData=[];
-        data='';
-        timeout=.3
-        #beginning time
-        begin=time.time()
+        # Make socket non blocking
+        self.sock.setblocking(0)
+        ourData = []
+        data = ''
+        timeout = .3
+        # Beginning time
+        begin = time.time()
         while True:
-            #If we have data then if we're passed the timeout break
+            # If we have data then if we're passed the timeout break
             if ourData and time.time()-begin > timeout:
-                break     
-            #if we're dataless wait just a bit
+                break
+            # If we're dataless wait just a bit
             elif time.time()-begin > timeout*2:
                 break
-            #recv data
+            # Recv data
             try:
                 data = self.sock.recv(8192)
                 if data:
                     ourData.append(data)
-                    begin=time.time()
+                    begin = time.time()
                 else:
-                    #sleep for sometime to indicate a gap
+                    # Sleep for sometime to indicate a gap
                     time.sleep(0.2)
             except socket.error as e:
                 # Check if we got a timeout
@@ -220,22 +228,23 @@ class TestRequest(object):
         self.sock.close()
         return data
 
+
 class TestResponse(object):
-    def __init__(self,status="200",saveCookie=False):
+    def __init__(self, status="200", saveCookie=False):
         self.status = status
         self.saveCookie = saveCookie
         self.rawData = ""
         self.request = ""
         self.domain = ""
 
-    def setRequestData(self,request):
+    def setRequestData(self, request):
         self.request = request
 
-    def setRawData(self,data):
+    def setRawData(self, data):
         self.rawData = data
 
-    def checkForCookie(self,cookie,originDomain):
-        #http://bayou.io/draft/cookie.domain.html
+    def checkForCookie(self, cookie, originDomain):
+        # http://bayou.io/draft/cookie.domain.html
         # Check if our originDomain is an IP
         originIsIP = True
         try:
@@ -245,9 +254,9 @@ class TestResponse(object):
 
         for cookieName, cookieMorsals in cookie.iteritems():
             # If the coverdomain is blank or the domain is an IP set the domain to be the origin
-            if(cookieMorsals['domain'] == "" or originIsIP == True):
+            if(cookieMorsals['domain'] == "" or originIsIP is True):
                 # We want to always add a domain so it's easy to parse later
-                return (cookie,originDomain)
+                return (cookie, originDomain)
             # If the coverdomain is set it can be any subdomain
             else:
                 coverDomain = cookieMorsals['domain']
@@ -259,9 +268,9 @@ class TestResponse(object):
                     if(coverDomain[i] != '.'):
                         firstNonDot = i
                         break
-                coverDomain = coverDomain[i:]
+                coverDomain = coverDomain[firstNonDot:]
                 # We must parse the coverDomain to make sure its not in the suffix list
-                with open('public_suffix_list.dat','r') as f:
+                with open('util/public_suffix_list.dat', 'r') as f:
                     for line in f:
                         if line[:2] == "//" or line[0] == " " or line[0].strip() == "":
                             continue
@@ -277,56 +286,54 @@ class TestResponse(object):
                 # check if our coverdomain is a subset of our origin domain
                 # Domain match (case insensative)
                 if coverDomain == originDomain:
-                    return (cookie,originDomain)
-                # Domain match algorithm 
+                    return (cookie, originDomain)
+                # Domain match algorithm
                 B = coverDomain.lower()
                 HDN = originDomain.lower()
                 NEnd = HDN.find(B)
-                if(NEnd != False):
+                if(NEnd is not False):
                     N = HDN[0:NEnd]
                     # Modern browsers don't care about dot
-                    if(N[-1]=='.'):
+                    if(N[-1] == '.'):
                         N = N[0:-1]
                 else:
-                    # We don't have an address of the form 
+                    # We don't have an address of the form
                     return False
                 if N == "":
                     return False
                 # Doesn't seem to be applicable anymore
-                #if('.' in N):
+                # if('.' in N):
                 #    print "FAIL3"
                 #    sys.exit()
-                # cookieMorsals['domain'] = coverDomain 
-                return (cookie,originDomain)
+                # cookieMorsals['domain'] = coverDomain
+                return (cookie, originDomain)
 
-
-
-    def parseHTTP(self,cookieJar,originDomain):
+    def parseHTTP(self, cookieJar, originDomain):
         response = self.rawData.split("\r\n")
-        (version,status,statusMsg) = response[0].split(" ",2)
+        (version, status, statusMsg) = response[0].split(" ", 2)
         if(int(self.status) != int(status)):
-            print "\tTest Failed: " + str(self.status),"-",str(status)
+            print "\tTest Failed: " + str(self.status), "-", str(status)
         # We start at line 1 because line zero is our status
         currentLine = 1
         headers = {}
         # We're going to get back an empty line, but strictly its \r\n
         while(response[currentLine] != "\r\n" and response[currentLine] != ""):
-            (hName,hValue) = response[currentLine].split(":",1)
+            (hName, hValue) = response[currentLine].split(":", 1)
             headers[hName] = hValue.strip()
-            currentLine +=1
+            currentLine += 1
             # If there is a set-cookie header try processing it.
-            if(hName == "Set-Cookie" and self.saveCookie==True):
+            if(hName == "Set-Cookie" and self.saveCookie is True):
                 hValue = "Test=test_value;expires=Sat, 01-Jan-2000 00:00:00 GMT; domain=chaimsanders.com; path=/;"
                 try:
-                    cookie = Cookie.SimpleCookie() 
+                    cookie = Cookie.SimpleCookie()
                     cookie.load(hValue.lstrip())
                 except Cookie.CookieError:
                     return returnError("There was an error processing the cookie into a SimpleCookie")
                 # if the checkForCookie is invalid then we don't save it
-                if(self.checkForCookie(cookie,originDomain) == False):
+                if(self.checkForCookie(cookie, originDomain) is not False):
                     return returnError("An invalid cookie was specified")
                 else:
-                    cookieJar.append((cookie,originDomain))
+                    cookieJar.append((cookie, originDomain))
 
     def getType(self):
         return "Response"
@@ -334,40 +341,43 @@ class TestResponse(object):
     def printTest(self):
         print self.saveCookie
 
+
 def returnError(errorString):
         errorString = str(errorString) + os.linesep
         sys.stderr.write(errorString)
         sys.exit(1)
 
+
 def extractInputTests(inputTestValues):
-    requestArgs = {} # Generate constructor args.
-    headers = {} # Create default constructors...
-    if inputTestValues == None:
+    requestArgs = {}  # Generate constructor args.
+    headers = {}  # Create default constructors...
+    if inputTestValues is None:
         myReq = TestRequest(**requestArgs)
         return myReq
-    for name,value in inputTestValues.iteritems(): # Otherwise we have input values.
-        if(name == "headers"): # Check if we get a header if so make it into a dict.
-            for header in value: # Process YAML list of dicts into just a dictionary.
+    for name, value in inputTestValues.iteritems():  # Otherwise we have input values.
+        if(name == "headers"):  # Check if we get a header if so make it into a dict.
+            for header in value:  # Process YAML list of dicts into just a dictionary.
                 header = header.popitem()
                 headers[header[0].title()] = header[1]
         else:
             requestArgs[name] = value
-    requestArgs ["headers"] = headers # Now that our headers is populated, push it!
+    requestArgs["headers"] = headers  # Now that our headers is populated, push it!
     try:
-        myReq = TestRequest(**requestArgs) # Try to generate a request.
+        myReq = TestRequest(**requestArgs)  # Try to generate a request.
         return myReq
     except TypeError:
         # Almost for sure they passed an invalid name, check the args of Request
         return returnError("An invalid argument was passed to the Request constructor, \
                             check your arugments " + str(requestArgs.keys()))
 
-#def extractMetaTests(metaTestValues):
+# def extractMetaTests(metaTestValues):
 #    return metaTestValues
 
-def extractTests (doc):
+
+def extractTests(doc):
     myTests = []
     # Iterate over the different 'named tests' (AKA YAML sections)
-    for section,tests in doc.iteritems(): 
+    for section, tests in doc.iteritems():
         # Within each YAML section look at each 'test'
         for test in tests:
             ourTest = test['test']
@@ -384,8 +394,8 @@ def extractTests (doc):
                     testData.append(extractOutputTests(outputTestValues))
                 elif('meta' in transactions.keys()):
                     metaData = transactions["meta"]
-                else:  
-                    return returnError("No input/output was found, please specify at least an empty input and out for defaults")     
+                else:
+                    return returnError("No input/output was found, please specify at least an empty input and out for defaults")
             # sanity check to ensure even number of in's and out's
             requests = 0
             responses = 0
@@ -396,33 +406,67 @@ def extractTests (doc):
                     responses += 1
             if(requests != responses):
                 return returnError("No input/output was found, please specify at least an empty input and out for defaults")
-            myTest = Test(testData,metaData)
+            myTest = Test(testData, metaData)
             myTests.append(myTest)
     return myTests
 
+
 def extractOutputTests(outputTestValues):
-    x = []
     # From the YAML generate the constructor args
     responseArgs = {}
     # if we have an empty input create default constructor
-    if outputTestValues == None:
+    if outputTestValues is None:
         myRes = TestResponse(**responseArgs)
         return myRes
     # Otherwise we have input values
-    for name,value in outputTestValues.iteritems():
+    for name, value in outputTestValues.iteritems():
         responseArgs[name] = value
     try:
-        myRes = TestResponse(**responseArgs) # Try to generate a request.
+        myRes = TestResponse(**responseArgs)  # Try to generate a request.
         return myRes
     except TypeError:
         # Almost for sure they passed an invalid name, check the args of Request
         return returnError("An invalid argument was passed to the Response constructor, \
                             check your arugments " + str(responseArgs.keys()))
 
+# We will loop through a dir looking for files of an extension
+def get_files(directory,extension='.py'):
+    fileNames = []
+    # normally we'll include a file without the 's'
+    # as a standard loader class, we'll load this manually
+    dirClass = directory[:-1]
+    for f in os.listdir(directory):
+        fname, ext = os.path.splitext(f)
+        # if we have python files that aren't our init or our master class
+        if ext == extension and fname != '__init__' and fname != dirClass:
+            fileNames.append(fname)
+    return fileNames
+
+# Make sure you've gotten the usual talk about running python scripts as root
+def loadWAFPlugin(wafChoice, directory="wafs"):
+    importNames = get_files(directory)
+    for name in importNames:
+        if '.' in name:
+            return returnError("WAF Plugin names cannot contain dots")
+        if(name.lower() == wafChoice.lower()):
+            ourWAF = importlib.import_module(directory + "." + str(name), __name__)
+            # Now that we've loaded what we think the right module 
+            # make sure it's in the right for format
+            for name, obj in inspect.getmembers(ourWAF):
+                # loop through members and get classes
+                if inspect.isclass(obj):
+                    # find the name of the class we're looking for
+                    if(name.lower() == wafChoice.lower()):
+                        # Dynamiclly load it
+                        mod = getattr(ourWAF, name)
+                        return mod
+            return returnError("We did not find a valid plugin")
+
+
 def getYAMLData(filePath="."):
     try:
         # Check if the path exists and we have read access
-        if(os.path.exists(filePath) and os.access(filePath,os.R_OK)):
+        if(os.path.exists(filePath) and os.access(filePath, os.R_OK)):
             pass
         else:
             return returnError("The YAML test folder specified could not be accessed")
@@ -436,10 +480,28 @@ def getYAMLData(filePath="."):
         return returnError("There was an issue listing YAML files" + str(e))
     return yamlFiles
 
+
+def parseArgs():
+    parser = argparse.ArgumentParser(description='OWASP CRS Regression Tests')
+    parser.add_argument('-d', '--directory', dest='directory', action='store',
+                       default='.', required=False, help='YAML test directory (default: .)')
+    parser.add_argument('-w', '--waf', dest='waf', action='store', default='ModSecurity',
+                       required=False, help='WAF to initiate  (default: ModSecurity)')
+    args = parser.parse_args()
+    if args.waf.lower() not in get_files("wafs"):
+        pluglist = "\n\t".join(get_files("wafs"))
+            
+        return returnError("There is no plugin for the WAF you specified, please choose an existing plugin or try using the generic plugin. \nYour available WAF plugins are:\n\t" + pluglist)
+    return args
+
+
 def main():
     myTests = []
-    #TODO: allow for input of where directory is. argparse?
-    yamlFiles = getYAMLData()
+    # TODO: allow for input of where directory is. argparse?
+    args = parseArgs()
+    wafClass = loadWAFPlugin(args.waf)
+    ourWAF = wafClass()
+    yamlFiles = getYAMLData(args.directory)
     for testFile in yamlFiles:
         try:
             # Load our YAML file
@@ -454,11 +516,10 @@ def main():
         finally:
             fd.close()
         myTests = extractTests(doc)
-        #TODO: check arguments to see what to do
+        # TODO: check arguments to see what to do
         for test in myTests:
             test.runTests()
 
 
 if __name__ == "__main__":
     main()
-    
