@@ -463,6 +463,27 @@ def loadWAFPlugin(wafChoice, directory="wafs"):
             return returnError("We did not find a valid plugin")
 
 
+# Make sure you've gotten the usual talk about running python scripts as root
+def loadLoggingPlugin(logChoice, directory="logs"):
+    importNames = get_files(directory)
+    for name in importNames:
+        if '.' in name:
+            return returnError("Logging Plugin names cannot contain dots")
+        if(name.lower() == logChoice.lower()):
+            ourLog = importlib.import_module(directory + "." + str(name), __name__)
+            # Now that we've loaded what we think the right module 
+            # make sure it's in the right for format
+            for name, obj in inspect.getmembers(ourLog):
+                # loop through members and get classes
+                if inspect.isclass(obj):
+                    # find the name of the class we're looking for
+                    if(name.lower() == logChoice.lower()):
+                        # Dynamiclly load it
+                        mod = getattr(ourLog, name)
+                        return mod
+            return returnError("We did not find a valid logging plugin")
+
+
 def getYAMLData(filePath="."):
     try:
         # Check if the path exists and we have read access
@@ -485,8 +506,8 @@ def parseArgs():
     parser = argparse.ArgumentParser(description='OWASP CRS Regression Tests')
     parser.add_argument('-d', '--directory', dest='directory', action='store',
                        default='.', required=False, help='YAML test directory (default: .)')
-    parser.add_argument('-w', '--waf', dest='waf', action='store', default='ModSecurity',
-                       required=False, help='WAF to initiate  (default: ModSecurity)')
+    parser.add_argument('-w', '--waf', dest='waf', action='store', default='ModSecurityv2',
+                       required=False, help='WAF to initiate  (default: ModSecurityv2)')
     args = parser.parse_args()
     if args.waf.lower() not in get_files("wafs"):
         pluglist = "\n\t".join(get_files("wafs"))  
@@ -498,7 +519,9 @@ def main():
     myTests = []
     args = parseArgs()
     wafClass = loadWAFPlugin(args.waf)
+    logClass = loadLoggingPlugin(args.waf)
     ourWAF = wafClass()
+    ourWAF.startWAF()
     yamlFiles = getYAMLData(args.directory)
     for testFile in yamlFiles:
         try:
@@ -516,6 +539,7 @@ def main():
         myTests = extractTests(doc)
         # TODO: check arguments to see what to do
         for test in myTests:
+            print test
             test.runTests()
 
 
