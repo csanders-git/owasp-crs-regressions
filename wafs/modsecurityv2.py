@@ -4,7 +4,7 @@ import subprocess
 
 class ModSecurityv2(WAF):
     def __init__(self):
-        print "TEST"
+        pass
     def startWAF(self):
         subprocess.call(["systemctl restart httpd"], shell=True)
         #os.system("systemctl restart httpd")

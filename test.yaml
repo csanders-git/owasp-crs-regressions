@@ -7,76 +7,12 @@ clean:
             author: "Chaim Sanders"
         - input:
             protocol: 'http'
-            addr: 'www.digg.com'
             port: '80'
             method: 'GET'
-            url: '/t.php'
-            headers: [
-                host: 'chaimsanders.com',
-                user-agent: 'test',
-                cookie: True
-            ]
+            url: '/index.php?t=test'
         - output:
-            status: 200
-            saveCookie: true
+            status: 201
+            triggers: [123, 456]
+            site_contains: "hello worl[a-z]"
+            log_contains: "error"
 
-        - input:
-            method: 'GET'
-            url: '/CHAIM'
-            headers: [
-                useragent: 'xyz',
-                host: 'zyx',
-                cookie: True
-            ]
-        - output:
-            status: 202
-            saveCookie: true
-
-        - input:
-            protocol: 'http'
-            addr: 'localhost'
-            port: '80'
-            method: 'GET'
-            url: '/t.php'
-        - output:
-            status: 200
-            saveCookie: true
-
-xss:
-    - test:
-        - meta:
-            name: "Test 2"
-            id: 2
-            author: "Chaim Sanders"
-        - input:
-            protocol: 'http'
-            addr: 'www.cnn.com'
-            port: '80'
-            url: '/t.php'
-        - output:
-            saveCookie: true
-            status: 200
-    - test:
-        - meta:
-            name: "Test 3"
-            id: 3
-            author: "Chaim Sanders"
-        - input:
-            protocol: 'http'
-            addr: 'reddit.com'
-            port: '443'
-            url: '/'
-        - output:
-            status: 200
-    - test:
-        - input:
-            protocol: 'http'
-            addr: 'www.chaimsanders.com'
-            port: '80'
-            rawRequest: |
-                GET / HTTP/1.1 
-                Host: www.chaimsanders.com
-                User-Agent: test
-
-        - output:
-            status: 200

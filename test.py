@@ -17,13 +17,22 @@ import importlib
 import inspect  # For iterating through class names
 import wafs.waf
 
-
+class Results(object):
+    def __init__(self):
+        self.results = {}
+    def setResult(self, key, value):
+        self.results[key] = value
+    def getResults(self):
+        return self.results
+    def setTestData():
+        pass
 # We use tests to  persist things that must exist between tests
 class Test(object):
     def __init__(self, subTests, metaData):
         self.subTests = subTests
         self.meta = metaData
         self.cookieJar = []
+        self.logger = None
 
     def runTests(self):
         '''
@@ -37,22 +46,39 @@ class Test(object):
             print str(self.meta["name"])
         except KeyError:
             print "Test Unnamed"
-        httpOut = ""
-        domain = ""
+        
         for subTest in self.subTests:
             if(subTest.getType() == "Request"):
-                httpOut = ""
-                domain = ""
-                httpOut = subTest.rawHTTP(self.cookieJar)
-                domain = subTest.host
+                # We reset the results for each request
+                results = Results()
+                # start our logging (if applicable)
+                self.logger.startLog()
+                subTest.rawHTTP(self.cookieJar)
+                #print subTest.rawData
+                status_headers_data = subTest.parseHTTP(self.cookieJar, subTest.host)
+                if(subTest.rawData == ""):
+                    return returnError("Seems like there was no HTTP response")
+                results.setResult("status",status_headers_data[0])
+                results.setResult("headers",status_headers_data[1])
+                results.setResult("data",status_headers_data[2])
+                # Stop logging (if applicable)                   
+                self.logger.stopLog()
+                # Check result
+                self.logger.parseLog()
+                # Get what the logger returned and enter it into results
+                for key, value in self.logger.returnValues.iteritems():
+                    results.setResult(key,value)
+                #print results.getResults()
 
             if(subTest.getType() == "Response"):
-                if(httpOut == ""):
-                    return returnError("Seems like there was no HTTP response")
-                # Set the previous requests response data for our response
-                subTest.setRawData(httpOut)
-                subTest.parseHTTP(self.cookieJar, domain)
-
+                subTest.setResults(results)
+                subTest.compareResults()
+                # Parse checks
+                
+                
+    def setLogger(self, logger):
+        self.logger = logger
+        
     def getCurlCommands(self):
         '''
             Name: getCurlCommands
@@ -68,7 +94,7 @@ class TestRequest(object):
 
     def __init__(self, rawRequest="",
                  protocol="http",
-                 addr="www.example.com",
+                 destAddr="localhost",
                  port=80, method="GET",
                  url="/",
                  version="HTTP/1.1",
@@ -76,15 +102,14 @@ class TestRequest(object):
                  data="",
                  status=200):
         if(headers == {}):
-            headers["Host"] = addr
+            headers["Host"] = destAddr
             headers["User-Agent"] = "OWASP CRS Regression Tests"
         try:
             port = int(port)
         except ValueError:
             returnError("An invalid port value was entered in our YAML")
-
         self.protocol = protocol
-        self.host = addr
+        self.host = destAddr
         self.port = int(port)
         self.method = method
         self.url = url
@@ -92,6 +117,7 @@ class TestRequest(object):
         self.headers = headers
         self.version = version
         self.rawRequest = rawRequest
+        self.rawData = ""
         # If cookie is true, we need to check the cookiejar.
         if('cookie' in headers.keys()):
             if(headers['cookie'] is True):
@@ -226,21 +252,7 @@ class TestRequest(object):
         data = ''.join(ourData)
         self.sock.shutdown(1)
         self.sock.close()
-        return data
-
-
-class TestResponse(object):
-    def __init__(self, status="200", saveCookie=False):
-        self.status = status
-        self.saveCookie = saveCookie
-        self.rawData = ""
-        self.request = ""
-        self.domain = ""
-
-    def setRequestData(self, request):
-        self.request = request
-
-    def setRawData(self, data):
+        #print data
         self.rawData = data
 
     def checkForCookie(self, cookie, originDomain):
@@ -270,12 +282,15 @@ class TestResponse(object):
                         break
                 coverDomain = coverDomain[firstNonDot:]
                 # We must parse the coverDomain to make sure its not in the suffix list
-                with open('util/public_suffix_list.dat', 'r') as f:
-                    for line in f:
-                        if line[:2] == "//" or line[0] == " " or line[0].strip() == "":
-                            continue
-                        if coverDomain == line.strip():
-                            return False
+                try:
+                    with open('util/public_suffix_list.dat', 'r') as f:
+                        for line in f:
+                            if line[:2] == "//" or line[0] == " " or line[0].strip() == "":
+                                continue
+                            if coverDomain == line.strip():
+                                return False
+                except IOError:
+                    return returnError("We were unable to open the needed publix suffix list")
                 # Generate Origin Domain TLD
                 i = originDomain.rfind(".")
                 oTLD = originDomain[i+1:]
@@ -311,8 +326,6 @@ class TestResponse(object):
     def parseHTTP(self, cookieJar, originDomain):
         response = self.rawData.split("\r\n")
         (version, status, statusMsg) = response[0].split(" ", 2)
-        if(int(self.status) != int(status)):
-            print "\tTest Failed: " + str(self.status), "-", str(status)
         # We start at line 1 because line zero is our status
         currentLine = 1
         headers = {}
@@ -334,12 +347,38 @@ class TestResponse(object):
                     return returnError("An invalid cookie was specified")
                 else:
                     cookieJar.append((cookie, originDomain))
+        data = response[currentLine:]
+        return (status,headers,data)
+
+class TestResponse(object):
+    def __init__(self, status="404", triggers=None, site_contains=None, log_contains=None, saveCookie=False):
+
+        self.status = status
+        # Python can't search lists unless elements are strings
+        self.triggers = [str(i) for i in triggers]
+        self.saveCookie = saveCookie
+        self.log_contains=log_contains
+        self.site_contains=site_contains
+        self.results = {}
 
     def getType(self):
         return "Response"
 
+    def setResults(self,results):
+        self.results = results
+
+    def compareResults(self):
+        failedToTrigger = []
+        for trigger in self.triggers:
+            if trigger not in self.results.getResults()["triggers"]:    
+                failedToTrigger.append(trigger)
+        if(len(failedToTrigger) > 0):
+            print "[-] Did not trigger ID(s):", ",".join(failedToTrigger)
+        if(self.results.getResults()["status"] != self.status):
+            print "[-] Status outcome (" + self.results.getResults()["status"] +") did not match - Expected",self.status
+    
     def printTest(self):
-        print self.saveCookie
+        pass
 
 
 def returnError(errorString):
@@ -348,9 +387,19 @@ def returnError(errorString):
         sys.exit(1)
 
 
-def extractInputTests(inputTestValues):
+def extractInputTests(inputTestValues,userOverrides):
     requestArgs = {}  # Generate constructor args.
     headers = {}  # Create default constructors...
+    # If we want to override the defaults they will have been
+    # provided via the command line
+    # If the YAML file provides information it will override these
+    for key, value in userOverrides.iteritems():
+        requestArgs[key] = value
+        # Special exception for overwriting default Host header
+        if(key == "destAddr"):
+            headers["Host"] = value
+
+        
     if inputTestValues is None:
         myReq = TestRequest(**requestArgs)
         return myReq
@@ -374,7 +423,7 @@ def extractInputTests(inputTestValues):
 #    return metaTestValues
 
 
-def extractTests(doc):
+def extractTests(doc,userOverrides):
     myTests = []
     # Iterate over the different 'named tests' (AKA YAML sections)
     for section, tests in doc.iteritems():
@@ -388,7 +437,7 @@ def extractTests(doc):
                 if('input' in transactions.keys()):
                     inputTestValues = transactions["input"]
                     # For each Test extract all the input requests
-                    testData.append(extractInputTests(inputTestValues))
+                    testData.append(extractInputTests(inputTestValues,userOverrides))
                 elif('output' in transactions.keys()):
                     outputTestValues = transactions["output"]
                     testData.append(extractOutputTests(outputTestValues))
@@ -506,8 +555,12 @@ def parseArgs():
     parser = argparse.ArgumentParser(description='OWASP CRS Regression Tests')
     parser.add_argument('-d', '--directory', dest='directory', action='store',
                        default='.', required=False, help='YAML test directory (default: .)')
+    parser.add_argument('-l', '--log', dest='log', action='store', default=None,
+                       required=False, help='Location of log file, if required')
     parser.add_argument('-w', '--waf', dest='waf', action='store', default='ModSecurityv2',
                        required=False, help='WAF to initiate  (default: ModSecurityv2)')
+    parser.add_argument('-a', '--addr', dest='destAddr', action='store',
+                       required=False, help='The default socket/host destination address to use (default: localhost)')                       
     args = parser.parse_args()
     if args.waf.lower() not in get_files("wafs"):
         pluglist = "\n\t".join(get_files("wafs"))  
@@ -516,13 +569,25 @@ def parseArgs():
 
 
 def main():
+
     myTests = []
     args = parseArgs()
     wafClass = loadWAFPlugin(args.waf)
     logClass = loadLoggingPlugin(args.waf)
     ourWAF = wafClass()
+    ourLogger = logClass()
     ourWAF.startWAF()
     yamlFiles = getYAMLData(args.directory)
+    ourLogger.setLogFile(args.log)
+    # Allow for users to override defaults
+    possibleOverrides = ["destAddr"]
+    userOverrides = {}
+    
+    # loop through the possible overrides to see if they're set
+    for override in possibleOverrides:
+        # If they are set make sure to add it to our userOverrrides
+        if(args.__getattribute__(override) is not None):
+            userOverrides[override] = args.__getattribute__(override)
     for testFile in yamlFiles:
         try:
             # Load our YAML file
@@ -536,11 +601,16 @@ def main():
             return returnError(str(e))
         finally:
             fd.close()
-        myTests = extractTests(doc)
+        # Extract our tests but override with user defaults as needed
+        myTests = extractTests(doc,userOverrides)
         # TODO: check arguments to see what to do
+        # We pass our logger so that we can parse out individual requests/response data
         for test in myTests:
-            print test
+            # Specify which logger we want to use to run the test
+            test.setLogger(ourLogger)
             test.runTests()
+
+            
 
 
 if __name__ == "__main__":
