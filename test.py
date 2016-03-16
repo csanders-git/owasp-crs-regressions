@@ -48,7 +48,7 @@ class Test(object):
             print "Test Unnamed"
         
         for subTest in self.subTests:
-            if(subTest.getType() == "Request"):
+            if subTest.getType() == "Request":
                 # We reset the results for each request
                 results = Results()
                 # start our logging (if applicable)
@@ -56,7 +56,7 @@ class Test(object):
                 subTest.rawHTTP(self.cookieJar)
                 #print subTest.rawData
                 status_headers_data = subTest.parseHTTP(self.cookieJar, subTest.host)
-                if(subTest.rawData == ""):
+                if subTest.rawData == "":
                     return returnError("Seems like there was no HTTP response")
                 results.setResult("status",status_headers_data[0])
                 results.setResult("headers",status_headers_data[1])
@@ -70,7 +70,7 @@ class Test(object):
                     results.setResult(key,value)
                 #print results.getResults()
 
-            if(subTest.getType() == "Response"):
+            if subTest.getType() == "Response":
                 subTest.setResults(results)
                 subTest.compareResults()
                 # Parse checks
@@ -86,7 +86,7 @@ class Test(object):
             Return: Result of gencurl
         '''
         for subTest in self.subTests:
-            if(subTest.getType() == "Request"):
+            if subTest.getType() == "Request":
                 return subTest.genCurl()
 
 
@@ -101,7 +101,7 @@ class TestRequest(object):
                  headers={},
                  data="",
                  status=200):
-        if(headers == {}):
+        if headers == {}:
             headers["Host"] = destAddr
             headers["User-Agent"] = "OWASP CRS Regression Tests"
         try:
@@ -119,8 +119,8 @@ class TestRequest(object):
         self.rawRequest = rawRequest
         self.rawData = ""
         # If cookie is true, we need to check the cookiejar.
-        if('cookie' in headers.keys()):
-            if(headers['cookie'] is True):
+        if 'cookie' in headers.keys():
+            if headers['cookie'] is True:
                 pass
 
     def getType(self):
@@ -150,7 +150,7 @@ class TestRequest(object):
         command = "curl %s%s \\%s" % (self.host, self.url, os.linesep)
         command += "-X %s \\%s" % (self.method, os.linesep)
         command += "--cookie %s \\%s" % (self.cookie, os.linesep)
-        if(len(self.headers) != 0):
+        if len(self.headers) != 0:
             for headerName, headerValue in self.headers.iteritems():
                 # TODO: Escape quotes in headername and headervalue
                 command += '--header "%s: %s" \\%s' % (headerName, headerValue, os.linesep)
@@ -162,14 +162,14 @@ class TestRequest(object):
             for cookieName, cookieMorsals in cookie[0].iteritems():
                 coverDomain = cookieMorsals['domain']
                 if coverDomain == "":
-                    if(originDomain == cookie[1]):
+                    if originDomain == cookie[1]:
                         return cookie[0]
                 else:
                     # Domain match algorithm
                     B = coverDomain.lower()
                     HDN = originDomain.lower()
                     NEnd = HDN.find(B)
-                    if(NEnd is not False):
+                    if NEnd is not False:
                         return cookie[0]
         return False
 
@@ -179,14 +179,14 @@ class TestRequest(object):
             self.sock.settimeout(5)
             self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             # Check if SSL
-            if(self.protocol == "https"):
+            if self.protocol == "https":
                 self.sock = ssl.wrap_socket(self.sock, ssl_version=ssl.PROTOCOL_SSLv23, ciphers="ADH-AES256-SHA:ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:AES128-GCM-SHA256:AES128-SHA256:HIGH:")
             self.sock.connect((self.host, self.port))
         except socket.error as msg:
             return returnError(msg)
         CRLF = "\r\n"
         # If they requested raw HTTP just provide it
-        if(self.rawRequest != ""):
+        if self.rawRequest != "":
             request = self.rawRequest
             request = request.replace("\n", CRLF)
             request += CRLF
@@ -200,8 +200,8 @@ class TestRequest(object):
             # Check if we have a cookie that needs using
             cookie = self.findCookie(cookieJar, self.host)
             # If the user has requested a tracked cookie and we have one set it
-            if('Cookie' in self.headers.keys()):
-                if(cookie is not False and self.headers['Cookie'] is True):
+            if 'Cookie' in self.headers.keys():
+                if cookie is not False and self.headers['Cookie'] is True:
                     print "\tAdded cookie from previous request"
                     self.headers["Cookie"] = cookie.output()
             # Expand out our headers into a string
@@ -211,7 +211,7 @@ class TestRequest(object):
                     headers += str(hName)+": "+str(hValue) + str(CRLF)
             request = string.replace(request, "#headers#", headers)
             # If we have data append it
-            if(self.data != ""):
+            if self.data != "":
                 data = str(self.data) + str(CRLF)
                 request = string.replace(request, "#data#", data)
             else:
@@ -244,7 +244,7 @@ class TestRequest(object):
                     time.sleep(0.2)
             except socket.error as e:
                 # Check if we got a timeout
-                if(e.errno == errno.EAGAIN):
+                if e.errno == errno.EAGAIN:
                     pass
                 # If we didn't it's an error
                 else:
@@ -266,7 +266,7 @@ class TestRequest(object):
 
         for cookieName, cookieMorsals in cookie.iteritems():
             # If the coverdomain is blank or the domain is an IP set the domain to be the origin
-            if(cookieMorsals['domain'] == "" or originIsIP is True):
+            if cookieMorsals['domain'] == "" or originIsIP is True:
                 # We want to always add a domain so it's easy to parse later
                 return (cookie, originDomain)
             # If the coverdomain is set it can be any subdomain
@@ -277,7 +277,7 @@ class TestRequest(object):
                 # http://tools.ietf.org/html/rfc6265#section-4.1.2.3
                 firstNonDot = 0
                 for i in range(len(coverDomain)):
-                    if(coverDomain[i] != '.'):
+                    if coverDomain[i] != '.':
                         firstNonDot = i
                         break
                 coverDomain = coverDomain[firstNonDot:]
@@ -296,7 +296,7 @@ class TestRequest(object):
                 oTLD = originDomain[i+1:]
                 # if our cover domain is the origin TLD we ignore
                 # Quick sanity check
-                if(coverDomain == oTLD):
+                if coverDomain == oTLD:
                     return False
                 # check if our coverdomain is a subset of our origin domain
                 # Domain match (case insensative)
@@ -306,10 +306,10 @@ class TestRequest(object):
                 B = coverDomain.lower()
                 HDN = originDomain.lower()
                 NEnd = HDN.find(B)
-                if(NEnd is not False):
+                if NEnd is not False:
                     N = HDN[0:NEnd]
                     # Modern browsers don't care about dot
-                    if(N[-1] == '.'):
+                    if N[-1] == '.':
                         N = N[0:-1]
                 else:
                     # We don't have an address of the form
@@ -335,7 +335,7 @@ class TestRequest(object):
             headers[hName] = hValue.strip()
             currentLine += 1
             # If there is a set-cookie header try processing it.
-            if(hName == "Set-Cookie" and self.saveCookie is True):
+            if hName == "Set-Cookie" and self.saveCookie is True:
                 hValue = "Test=test_value;expires=Sat, 01-Jan-2000 00:00:00 GMT; domain=chaimsanders.com; path=/;"
                 try:
                     cookie = Cookie.SimpleCookie()
@@ -343,7 +343,7 @@ class TestRequest(object):
                 except Cookie.CookieError:
                     return returnError("There was an error processing the cookie into a SimpleCookie")
                 # if the checkForCookie is invalid then we don't save it
-                if(self.checkForCookie(cookie, originDomain) is not False):
+                if self.checkForCookie(cookie, originDomain) is not False:
                     return returnError("An invalid cookie was specified")
                 else:
                     cookieJar.append((cookie, originDomain))
@@ -372,9 +372,9 @@ class TestResponse(object):
         for trigger in self.triggers:
             if trigger not in self.results.getResults()["triggers"]:    
                 failedToTrigger.append(trigger)
-        if(len(failedToTrigger) > 0):
+        if len(failedToTrigger) > 0:
             print "[-] Did not trigger ID(s):", ",".join(failedToTrigger)
-        if(self.results.getResults()["status"] != self.status):
+        if self.results.getResults()["status"] != self.status:
             print "[-] Status outcome (" + self.results.getResults()["status"] +") did not match - Expected",self.status
     
     def printTest(self):
@@ -396,7 +396,7 @@ def extractInputTests(inputTestValues,userOverrides):
     for key, value in userOverrides.iteritems():
         requestArgs[key] = value
         # Special exception for overwriting default Host header
-        if(key == "destAddr"):
+        if key == "destAddr":
             headers["Host"] = value
 
         
@@ -404,7 +404,7 @@ def extractInputTests(inputTestValues,userOverrides):
         myReq = TestRequest(**requestArgs)
         return myReq
     for name, value in inputTestValues.iteritems():  # Otherwise we have input values.
-        if(name == "headers"):  # Check if we get a header if so make it into a dict.
+        if name == "headers":  # Check if we get a header if so make it into a dict.
             for header in value:  # Process YAML list of dicts into just a dictionary.
                 header = header.popitem()
                 headers[header[0].title()] = header[1]
@@ -434,14 +434,14 @@ def extractTests(doc,userOverrides):
             metaData = {}
             for transactions in ourTest:
                 # See if we have an input transaction or input
-                if('input' in transactions.keys()):
+                if 'input' in transactions.keys():
                     inputTestValues = transactions["input"]
                     # For each Test extract all the input requests
                     testData.append(extractInputTests(inputTestValues,userOverrides))
-                elif('output' in transactions.keys()):
+                elif 'output' in transactions.keys():
                     outputTestValues = transactions["output"]
                     testData.append(extractOutputTests(outputTestValues))
-                elif('meta' in transactions.keys()):
+                elif 'meta' in transactions.keys():
                     metaData = transactions["meta"]
                 else:
                     return returnError("No input/output was found, please specify at least an empty input and out for defaults")
@@ -449,11 +449,11 @@ def extractTests(doc,userOverrides):
             requests = 0
             responses = 0
             for i in testData:
-                if(i.__class__.__name__ == "TestRequest"):
+                if i.__class__.__name__ == "TestRequest":
                     requests += 1
-                if(i.__class__.__name__ == "TestResponse"):
+                if i.__class__.__name__ == "TestResponse":
                     responses += 1
-            if(requests != responses):
+            if requests != responses:
                 return returnError("No input/output was found, please specify at least an empty input and out for defaults")
             myTest = Test(testData, metaData)
             myTests.append(myTest)
@@ -497,7 +497,7 @@ def loadWAFPlugin(wafChoice, directory="wafs"):
     for name in importNames:
         if '.' in name:
             return returnError("WAF Plugin names cannot contain dots")
-        if(name.lower() == wafChoice.lower()):
+        if name.lower() == wafChoice.lower():
             ourWAF = importlib.import_module(directory + "." + str(name), __name__)
             # Now that we've loaded what we think the right module 
             # make sure it's in the right for format
@@ -505,7 +505,7 @@ def loadWAFPlugin(wafChoice, directory="wafs"):
                 # loop through members and get classes
                 if inspect.isclass(obj):
                     # find the name of the class we're looking for
-                    if(name.lower() == wafChoice.lower()):
+                    if name.lower() == wafChoice.lower():
                         # Dynamiclly load it
                         mod = getattr(ourWAF, name)
                         return mod
@@ -518,7 +518,7 @@ def loadLoggingPlugin(logChoice, directory="logs"):
     for name in importNames:
         if '.' in name:
             return returnError("Logging Plugin names cannot contain dots")
-        if(name.lower() == logChoice.lower()):
+        if name.lower() == logChoice.lower():
             ourLog = importlib.import_module(directory + "." + str(name), __name__)
             # Now that we've loaded what we think the right module 
             # make sure it's in the right for format
@@ -526,7 +526,7 @@ def loadLoggingPlugin(logChoice, directory="logs"):
                 # loop through members and get classes
                 if inspect.isclass(obj):
                     # find the name of the class we're looking for
-                    if(name.lower() == logChoice.lower()):
+                    if name.lower() == logChoice.lower():
                         # Dynamiclly load it
                         mod = getattr(ourLog, name)
                         return mod
@@ -536,7 +536,7 @@ def loadLoggingPlugin(logChoice, directory="logs"):
 def getYAMLData(filePath="."):
     try:
         # Check if the path exists and we have read access
-        if(os.path.exists(filePath) and os.access(filePath, os.R_OK)):
+        if os.path.exists(filePath) and os.access(filePath, os.R_OK):
             pass
         else:
             return returnError("The YAML test folder specified could not be accessed")
@@ -586,7 +586,7 @@ def main():
     # loop through the possible overrides to see if they're set
     for override in possibleOverrides:
         # If they are set make sure to add it to our userOverrrides
-        if(args.__getattribute__(override) is not None):
+        if args.__getattribute__(override) is not None:
             userOverrides[override] = args.__getattribute__(override)
     for testFile in yamlFiles:
         try:
