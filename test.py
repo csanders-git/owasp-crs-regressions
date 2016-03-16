@@ -130,7 +130,7 @@ class TestRequest(object):
         print self.url
         # for ch in request:
         #    print ord(ch),
-        #    if(ord(ch)==10):
+        #    if ord(ch)==10):
         #        print
 
     def setRequestURI(self):
@@ -317,7 +317,7 @@ class TestRequest(object):
                 if N == "":
                     return False
                 # Doesn't seem to be applicable anymore
-                # if('.' in N):
+                # if '.' in N):
                 #    print "FAIL3"
                 #    sys.exit()
                 # cookieMorsals['domain'] = coverDomain
@@ -330,7 +330,7 @@ class TestRequest(object):
         currentLine = 1
         headers = {}
         # We're going to get back an empty line, but strictly its \r\n
-        while(response[currentLine] != "\r\n" and response[currentLine] != ""):
+        while response[currentLine] != "\r\n" and response[currentLine] != "":
             (hName, hValue) = response[currentLine].split(":", 1)
             headers[hName] = hValue.strip()
             currentLine += 1
@@ -545,7 +545,7 @@ def getYAMLData(filePath="."):
     # List all the files in that directory that are yaml files
     # This will return either a list or error, list may be empty.
     try:
-        yamlFiles = [f for f in os.listdir(filePath) if (os.path.isfile("/".join([filePath, f])) and f[-5:] == ".yaml")]
+        yamlFiles = [f for f in os.listdir(filePath) if os.path.isfile("/".join([filePath, f])) and f[-5:] == ".yaml"]
     except OSError as e:
         return returnError("There was an issue listing YAML files" + str(e))
     return yamlFiles
