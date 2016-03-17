@@ -2,7 +2,7 @@
 '''
     Authors: Chaim Sanders, Jared Stroud
 '''
-import yaml  # We reqire pyYaml
+import yaml  # We reqire pyYaml for yaml processing
 import sys
 import os
 import socket
@@ -16,6 +16,10 @@ from IPy import IP
 import importlib
 import inspect  # For iterating through class names
 import wafs.waf
+import zlib
+import gzip
+import StringIO
+
 
 class Results(object):
     def __init__(self):
@@ -26,6 +30,7 @@ class Results(object):
         return self.results
     def setTestData():
         pass
+
 # We use tests to  persist things that must exist between tests
 class Test(object):
     def __init__(self, subTests, metaData):
@@ -114,14 +119,21 @@ class TestRequest(object):
         self.method = method
         self.url = url
         self.data = data
+        #TODO Make sure data is urlencoded
         self.headers = headers
         self.version = version
         self.rawRequest = rawRequest
         self.rawData = ""
-        # If cookie is true, we need to check the cookiejar.
+        #TODO: If cookie is true, we need to check the cookiejar.
         if 'cookie' in headers.keys():
             if headers['cookie'] is True:
                 pass
+        # If it's PUT or POST we need to calculate content-length
+        if data != "":
+            if 'Content-Length' not in headers.keys() and 'Content-Type' not in headers.keys():
+                headers["Content-Type"] = "application/x-www-form-urlencoded"
+                headers["Content-Length"] = len(data)+2 #  +2 for the CRLF
+            
 
     def getType(self):
         return "Request"
@@ -252,7 +264,17 @@ class TestRequest(object):
         data = ''.join(ourData)
         self.sock.shutdown(1)
         self.sock.close()
-        #print data
+        # if the output headers say there is encoding
+        if('Content-Encoding' in self.headers.keys()):
+            # If it is gzip then ungzip it
+            if(self.headers["Content-Encoding"] == "gzip"):
+                buf = StringIO.StringIO(data)
+                f = gzip.GzipFile(fileobj=buf)
+                data = f.read()
+            # if it is deflate then decompress it
+            elif(self.headers["Content-Encoding"] == "deflate"):
+                data = StringIO.StringIO(zlib.decompress(data))
+                data = data.read()
         self.rawData = data
 
     def checkForCookie(self, cookie, originDomain):
@@ -368,12 +390,14 @@ class TestResponse(object):
         self.results = results
 
     def compareResults(self):
+        # Test if any triggers were not seen
         failedToTrigger = []
         for trigger in self.triggers:
             if trigger not in self.results.getResults()["triggers"]:    
                 failedToTrigger.append(trigger)
         if len(failedToTrigger) > 0:
             print "[-] Did not trigger ID(s):", ",".join(failedToTrigger)
+        # Test if the status was incorrect
         if self.results.getResults()["status"] != self.status:
             print "[-] Status outcome (" + self.results.getResults()["status"] +") did not match - Expected",self.status
     
