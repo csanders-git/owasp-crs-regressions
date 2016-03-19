@@ -17,7 +17,7 @@ Examples:
     # as needed.
     - test:
         - meta:
-            name: "Example 2 - Trigger Nothing"
+            name: "Example 2 - Trigger Specific Nothing"
             id: 1
             author: "Chaim Sanders"
             enabled: True
@@ -58,5 +58,44 @@ Examples:
         - output:
             status: 200
             triggers: [941100] 
-            log_contains: 'XSS Attack Detected via Libinjection'         
-        
+            log_contains: 'XSS Attack Detected via Libinjection'
+    # In general you can get fairly specific using the built in 
+    # parsing. It will calculate content-length for you, like
+    # magic.            
+    - test:
+        - meta:
+            name: "Example 4 - POST rule"
+            id: 1
+            author: "Chaim Sanders"
+            enabled: True
+        - input:
+            method: 'POST'
+            url: '/'
+            data: 'Today is the first day of my life'
+            headers: [
+                Host: 'localhost',
+                User-Agent: 'OWASP CRS Regression'
+            ]
+            version: 'HTTP/1.1'
+        - output:
+            status: 200     
+    # If you need more control, you can always fail back to raw.
+    # requests. These should allow you to do anything you need,
+    # even if it's against all spec.            
+    - test:
+        - meta:
+            name: "Example 5 - Raw Request rule"
+            id: 1
+            author: "Chaim Sanders"
+            enabled: True
+        - input:
+            protocol: 'http'
+            destAddr: 'localhost'
+            port: '80'
+            rawRequest: |
+                GET / HTTP/1.1 
+                Host: localhost
+                User-Agent: OWASP CRS Regression
+                
+        - output:
+            status: 200
