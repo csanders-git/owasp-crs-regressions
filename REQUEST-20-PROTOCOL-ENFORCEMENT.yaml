@@ -1,0 +1,66 @@
+---
+Rule_Tests:
+    - test:
+        - meta:
+            name: "Test Trigger no Rules"
+            id: 1
+            author: "Chaim Sanders"
+            enabled: True
+        - input:
+            protocol: 'http'
+            port: '80'
+            method: 'GET'
+            url: '/'
+        - output:
+            status: 200
+            triggers: []
+            log_contains: "error"
+            site_contains: "Bank"
+    - test:
+        - meta:
+            name: "Triggering Rule 920170"
+            id: 1
+            author: "Chaim Sanders"
+            enabled: False
+        - input:
+            protocol: 'http'
+            port: '80'
+            method: 'GET'
+            url: '/index.php'
+            data: 'test'
+        - output:
+            status: 302
+            triggers: [920170]
+            site_contains: "hello worl[a-z]"
+            log_contains: "octopus"
+    - test:
+        - meta:
+            name: "Triggering Rule 911100"
+            id: 1
+            author: "Chaim Sanders"
+            enabled: False
+        - input:
+            protocol: 'http'
+            port: '80'
+            method: 'options'
+            url: '* x'
+        - output:
+            status: 501
+            triggers: [920100]
+            log_contains: "error"            
+    - test:
+        - meta:
+            name: "Triggering Rule 920110"
+            id: 1
+            author: "Chaim Sanders"
+            enabled: False
+        - input:
+            protocol: 'http'
+            port: '80'
+            method: 'GET x'
+            url: 'http://host:80/abspathxy?query'
+            data: 'test'
+        - output:
+            status: 400
+            triggers: [920110]
+            log_contains: "error"            

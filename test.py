@@ -52,6 +52,7 @@ class Test(object):
         except KeyError:
             print "Test Unnamed"
         
+        requestData = ""
         for subTest in self.subTests:
             if subTest.getType() == "Request":
                 # We reset the results for each request
@@ -63,6 +64,7 @@ class Test(object):
                 status_headers_data = subTest.parseHTTP(self.cookieJar, subTest.host)
                 if subTest.rawData == "":
                     return returnError("Seems like there was no HTTP response")
+                requestData = subTest.rawData
                 results.setResult("status",status_headers_data[0])
                 results.setResult("headers",status_headers_data[1])
                 results.setResult("data",status_headers_data[2])
@@ -77,7 +79,10 @@ class Test(object):
 
             if subTest.getType() == "Response":
                 subTest.setResults(results)
+                subTest.setPageResponse(requestData)
                 subTest.compareResults()
+                if subTest.testPassed():
+                    print "\t[+] Test passed"
                 # Parse checks
                 
                 
@@ -105,7 +110,8 @@ class TestRequest(object):
                  version="HTTP/1.1",
                  headers={},
                  data="",
-                 status=200):
+                 status=200,
+                 saveCookie=False):
         if headers == {}:
             headers["Host"] = destAddr
             headers["User-Agent"] = "OWASP CRS Regression Tests"
@@ -113,6 +119,7 @@ class TestRequest(object):
             port = int(port)
         except ValueError:
             returnError("An invalid port value was entered in our YAML")
+        self.saveCookie = saveCookie
         self.protocol = protocol
         self.host = destAddr
         self.port = int(port)
@@ -229,6 +236,7 @@ class TestRequest(object):
             else:
                 request = string.replace(request, "#data#", "")
         # Update our raw request with the generated one
+        #print request
         self.rawRequest = request
         self.sock.send(request)
         # Make socket non blocking
@@ -275,6 +283,7 @@ class TestRequest(object):
             elif(self.headers["Content-Encoding"] == "deflate"):
                 data = StringIO.StringIO(zlib.decompress(data))
                 data = data.read()
+        #print data
         self.rawData = data
 
     def checkForCookie(self, cookie, originDomain):
@@ -373,7 +382,7 @@ class TestRequest(object):
         return (status,headers,data)
 
 class TestResponse(object):
-    def __init__(self, status="404", triggers=None, site_contains=None, log_contains=None, saveCookie=False):
+    def __init__(self, status="200", triggers=[], site_contains=None, log_contains=None, saveCookie=False):
 
         self.status = status
         # Python can't search lists unless elements are strings
@@ -381,25 +390,46 @@ class TestResponse(object):
         self.saveCookie = saveCookie
         self.log_contains=log_contains
         self.site_contains=site_contains
+        self.pageResponse=""
         self.results = {}
+        self.passed = True
 
     def getType(self):
         return "Response"
 
     def setResults(self,results):
         self.results = results
+        
+    def setPageResponse(self,pageResponse):
+        self.pageResponse = pageResponse
 
     def compareResults(self):
         # Test if any triggers were not seen
         failedToTrigger = []
         for trigger in self.triggers:
-            if trigger not in self.results.getResults()["triggers"]:    
-                failedToTrigger.append(trigger)
+            if "triggers" in self.results.getResults().keys():
+                if trigger not in self.results.getResults()["triggers"]:    
+                    failedToTrigger.append(trigger)
         if len(failedToTrigger) > 0:
-            print "[-] Did not trigger ID(s):", ",".join(failedToTrigger)
+            print "\t[-] Did not trigger ID(s):", ",".join(failedToTrigger)
+            self.passed = False
         # Test if the status was incorrect
-        if self.results.getResults()["status"] != self.status:
-            print "[-] Status outcome (" + self.results.getResults()["status"] +") did not match - Expected",self.status
+        if str(self.results.getResults()["status"]) != str(self.status):
+            print "\t[-] Status outcome (" + self.results.getResults()["status"] +") did not match - Expected",self.status
+            self.passed = False
+        # If the log doesn't contain the requested information
+        if "raw_data" in self.results.getResults().keys() and self.log_contains != None:
+            if self.results.getResults()["raw_data"].find(self.log_contains) == -1:
+                print "\t[-] Log did not contain expected data."
+                self.passed = False
+        # Check if the HTML output had the required elements
+        if self.pageResponse != "" and self.site_contains != None:
+            if(self.pageResponse.find(self.site_contains)) == -1:
+                print "\t[-] HTML output did not contain expected data."
+                self.passed = False
+    
+    def testPassed(self):
+        return self.passed
     
     def printTest(self):
         pass
@@ -441,7 +471,7 @@ def extractInputTests(inputTestValues,userOverrides):
     except TypeError:
         # Almost for sure they passed an invalid name, check the args of Request
         return returnError("An invalid argument was passed to the Request constructor, \
-                            check your arugments " + str(requestArgs.keys()))
+                            check your arguments " + str(requestArgs.keys()))
 
 # def extractMetaTests(metaTestValues):
 #    return metaTestValues
@@ -456,6 +486,7 @@ def extractTests(doc,userOverrides):
             ourTest = test['test']
             testData = []
             metaData = {}
+            skipTest = False
             for transactions in ourTest:
                 # See if we have an input transaction or input
                 if 'input' in transactions.keys():
@@ -466,9 +497,16 @@ def extractTests(doc,userOverrides):
                     outputTestValues = transactions["output"]
                     testData.append(extractOutputTests(outputTestValues))
                 elif 'meta' in transactions.keys():
+                    # Check if we have enabled our test if not we'll skip
                     metaData = transactions["meta"]
+                    if "enabled" in metaData.keys():
+                        if metaData["enabled"] is False:
+                            skipTest = True
                 else:
                     return returnError("No input/output was found, please specify at least an empty input and out for defaults")
+            # if the test is disabled we skip it
+            if skipTest is True:
+                continue
             # sanity check to ensure even number of in's and out's
             requests = 0
             responses = 0
@@ -633,8 +671,6 @@ def main():
             # Specify which logger we want to use to run the test
             test.setLogger(ourLogger)
             test.runTests()
-
-            
 
 
 if __name__ == "__main__":

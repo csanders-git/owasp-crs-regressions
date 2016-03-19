@@ -11,6 +11,7 @@ clean:
             method: 'GET'
             url: '/index.php?t=test'
             data: 'testesttest'
+            
         - output:
             status: 201
             triggers: [123, 456]

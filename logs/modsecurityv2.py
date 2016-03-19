@@ -24,10 +24,16 @@ class ModSecurityv2(Log):
         self.testData = self.postTestData.replace(self.initalData,"")
     def parseLog(self):
         out = self.testData.strip().split("\n")
+        triggers = []
+        # Iterate over each triggered rule (if any)
         for i in out:
             x = i.split(" [")
+            # check for the ID from each of triggered rules
             for i in x:
                 if(i[:-1][0:2] == "id"):
-                    self.returnValues["triggers"] = i[4:-2]
+                    triggers.append(i[4:-2])
+        self.returnValues["triggers"] = triggers
+        self.returnValues["raw_data"] = self.testData.strip()
+        
         
         

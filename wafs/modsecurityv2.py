@@ -7,6 +7,7 @@ class ModSecurityv2(WAF):
         pass
     def startWAF(self):
         subprocess.call(["systemctl restart httpd"], shell=True)
+        # set SecDefaultAction
         #os.system("systemctl restart httpd")
     def stopWAF(self):
         pass
