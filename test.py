@@ -165,7 +165,7 @@ class TestRequest(object):
     def genCurl(self):
         command = "curl %s%s \\%s" % (self.host, self.url, os.linesep)
         command += "-X %s \\%s" % (self.method, os.linesep)
-        command += "--cookie %s \\%s" % (self.cookie, os.linesep)
+        #command += "--cookie %s \\%s" % (self.cookie, os.linesep)
         if len(self.headers) != 0:
             for headerName, headerValue in self.headers.iteritems():
                 # TODO: Escape quotes in headername and headervalue
@@ -247,7 +247,7 @@ class TestRequest(object):
                 request = string.replace(request, "#data#", "")
         # Update our raw request with the generated one
         # This seems like an unsafe thing to do but we need \r\n to be understood
-        request = string.replace(request,"\\\\", "\\")
+        request = request.decode('string_escape')
         self.rawRequest = request
         self.sock.send(request)
         # Make socket non blocking
@@ -640,7 +640,12 @@ def parseArgs():
     parser.add_argument('-w', '--waf', dest='waf', action='store', default='ModSecurityv2',
                        required=False, help='WAF to initiate  (default: ModSecurityv2)')
     parser.add_argument('-a', '--addr', dest='destAddr', action='store',
-                       required=False, help='The default socket/host destination address to use (default: localhost)')                       
+                       required=False, help='The default socket/host destination address to use (default: localhost)')
+    parser.add_argument('-r', '--result', dest='result', action='store', default='Run_Tests',
+                       choices=['Run_Tests','Gen_Curl'],
+                       required=False, help='What we should do with our given tests')      
+    parser.add_argument('-o', '--output', dest='output', action='store',
+                       required=False, help='[TODO:]Where we should save the output')                                                            
     args = parser.parse_args()
     if args.waf.lower() not in get_files("wafs"):
         pluglist = "\n\t".join(get_files("wafs"))  
@@ -688,18 +693,22 @@ def main():
             fd.close()
         # Extract our tests but override with user defaults as needed
         myTests = extractTests(doc,userOverrides)
-        # TODO: check arguments to see what to do
-        # for each test suit execute each test
-        for suit in myTests.keys():
-            print "[+] Starting test suite", suit
-            # The cookiejar is test suit depended
-            cookieJar = []
-            # We pass our logger so that we can parse out individual requests/response data
-            for test in myTests[suit]:
-                test.setCookieJar(cookieJar)
-                # Specify which logger we want to use to run the test
-                test.setLogger(ourLogger)
-                test.runTests()
+        if args.result == "Run_Tests":
+            # for each test suit execute each test
+            for suit in myTests.keys():
+                print "[+] Starting test suite", suit
+                # The cookiejar is test suit depended
+                cookieJar = []
+                # We pass our logger so that we can parse out individual requests/response data
+                for test in myTests[suit]:
+                    test.setCookieJar(cookieJar)
+                    # Specify which logger we want to use to run the test
+                    test.setLogger(ourLogger)
+                    test.runTests()
+        elif args.result == "Gen_Curl":
+            for suit in myTests.keys():
+                for test in myTests[suit]:
+                    test.getCurlCommands()
 
 
 if __name__ == "__main__":

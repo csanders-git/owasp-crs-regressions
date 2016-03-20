@@ -23,7 +23,7 @@ Protocol Attack:
             name: "Test Trigger 921110"
             id: 1
             author: "Chaim Sanders"
-            enabled: False
+            enabled: True
         - input:
             protocol: 'http'
             destAddr: 'localhost'

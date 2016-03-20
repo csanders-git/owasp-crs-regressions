@@ -17,7 +17,7 @@ Examples:
     - test:
         - meta:
             name: "Example 2 - Trigger Nothing Again"
-            id: 1
+            id: 2
             author: "Chaim Sanders"
         - input:
             protocol: 'http'
@@ -39,7 +39,7 @@ Examples:
     - test:
         - meta:
             name: "Example 3 - Trigger XSS Rules"
-            id: 1
+            id: 3
             author: "Chaim Sanders"
             enabled: True
         - input:
@@ -63,7 +63,7 @@ Examples:
     - test:
         - meta:
             name: "Example 4 - POST rule"
-            id: 1
+            id: 4
             author: "Chaim Sanders"
         - input:
             method: 'POST'
@@ -82,7 +82,7 @@ Examples:
     - test:
         - meta:
             name: "Example 5 - Raw Request rule"
-            id: 1
+            id: 5
             author: "Chaim Sanders"
         - input:
             protocol: 'http'
@@ -104,7 +104,7 @@ Examples:
     - test:
         - meta:
             name: "Example 6 - A Disabled Test"
-            id: 1
+            id: 6
             author: "Chaim Sanders"
             enabled: False
         - input:
@@ -121,7 +121,7 @@ Examples:
     - test:
         - meta:
             name: "Example 7a - Saving Cookie State"
-            id: 1
+            id: 7
             author: "Chaim Sanders"
             enabled: True
         - input:
@@ -139,7 +139,7 @@ Examples:
     - test:
         - meta:
             name: "Example 7b - Using a Saved Cookie"
-            id: 1
+            id: 8
             author: "Chaim Sanders"
             enabled: True
         - input:
@@ -164,7 +164,7 @@ Examples2:
     - test:
         - meta:
             name: "Example 8 - Trigger Nothing"
-            id: 1
+            id: 9
             author: "Chaim Sanders"
         - input:
             headers: [
@@ -176,7 +176,7 @@ Examples2:
     - test:
         - meta:
             name: "Example 8 - Trigger Nothing"
-            id: 1
+            id: 10
             author: "Chaim Sanders"
         - input:
             headers: [
