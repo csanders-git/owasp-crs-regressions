@@ -246,10 +246,8 @@ class TestRequest(object):
             else:
                 request = string.replace(request, "#data#", "")
         # Update our raw request with the generated one
-        # TODO: Find out if python has a way to prevent string saftey
-        #print request
-        request = request.replace("\\r\\n",CRLF)
-        print request
+        # This seems like an unsafe thing to do but we need \r\n to be understood
+        request = string.replace(request,"\\\\", "\\")
         self.rawRequest = request
         self.sock.send(request)
         # Make socket non blocking
@@ -637,6 +635,8 @@ def parseArgs():
                        default='.', required=False, help='YAML test directory (default: .)')
     parser.add_argument('-l', '--log', dest='log', action='store', default=None,
                        required=False, help='Location of log file, if required')
+    parser.add_argument('-f', '--file', dest='file', action='store', default=None,
+                       required=False, help='Run only one test file, even if not .yaml')                       
     parser.add_argument('-w', '--waf', dest='waf', action='store', default='ModSecurityv2',
                        required=False, help='WAF to initiate  (default: ModSecurityv2)')
     parser.add_argument('-a', '--addr', dest='destAddr', action='store',
@@ -658,6 +658,7 @@ def main():
     ourWAF = wafClass()
     ourLogger = logClass()
     ourWAF.startWAF()
+    
     yamlFiles = getYAMLData(args.directory)
     ourLogger.setLogFile(args.log)
     # Allow for users to override defaults
@@ -669,6 +670,9 @@ def main():
         # If they are set make sure to add it to our userOverrrides
         if args.__getattribute__(override) is not None:
             userOverrides[override] = args.__getattribute__(override)
+    # Allow the user to overrride for just a single file, useful for testing
+    if(args.file != None):
+        yamlFiles = [args.file]
     for testFile in yamlFiles:
         try:
             # Load our YAML file
