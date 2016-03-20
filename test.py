@@ -33,12 +33,13 @@ class Results(object):
 
 # We use tests to  persist things that must exist between tests
 class Test(object):
-    def __init__(self, subTests, metaData):
+    def __init__(self, subTests, metaData, cookieJar=[]):
         self.subTests = subTests
-        self.meta = metaData
-        self.cookieJar = []
+        self.meta = metaData        
         self.logger = None
-
+        self.cookieJar = cookieJar
+    def setCookieJar(self,x):
+        pass
     def runTests(self):
         '''
             Name: runTests
@@ -112,7 +113,7 @@ class TestRequest(object):
                  data="",
                  status=200,
                  saveCookie=False):
-        if headers == {}:
+        if "Host" not in headers and "User-Agent" not in headers:
             headers["Host"] = destAddr
             headers["User-Agent"] = "OWASP CRS Regression Tests"
         try:
@@ -131,10 +132,6 @@ class TestRequest(object):
         self.version = version
         self.rawRequest = rawRequest
         self.rawData = ""
-        #TODO: If cookie is true, we need to check the cookiejar.
-        if 'cookie' in headers.keys():
-            if headers['cookie'] is True:
-                pass
         # If it's PUT or POST we need to calculate content-length
         if data != "":
             if 'Content-Length' not in headers.keys() and 'Content-Type' not in headers.keys():
@@ -177,20 +174,21 @@ class TestRequest(object):
         return command
 
     def findCookie(self, cookieJar, originDomain):
+        returnCookies = []
         for cookie in cookieJar:
             for cookieName, cookieMorsals in cookie[0].iteritems():
                 coverDomain = cookieMorsals['domain']
                 if coverDomain == "":
                     if originDomain == cookie[1]:
-                        return cookie[0]
+                        returnCookies.append(cookie[0])
                 else:
                     # Domain match algorithm
                     B = coverDomain.lower()
                     HDN = originDomain.lower()
                     NEnd = HDN.find(B)
                     if NEnd is not False:
-                        return cookie[0]
-        return False
+                        returnCookies.append(cookie[0])
+        return returnCookies
 
     def rawHTTP(self, cookieJar):
         try:
@@ -217,12 +215,24 @@ class TestRequest(object):
             request = string.replace(request, "#url#", self.url+" ")
             request = string.replace(request, "#version#", self.version)
             # Check if we have a cookie that needs using
-            cookie = self.findCookie(cookieJar, self.host)
+            cookies = self.findCookie(cookieJar, self.host)
             # If the user has requested a tracked cookie and we have one set it
             if 'Cookie' in self.headers.keys():
-                if cookie is not False and self.headers['Cookie'] is True:
-                    print "\tAdded cookie from previous request"
-                    self.headers["Cookie"] = cookie.output()
+                if cookies != [] and self.headers['Cookie'] is True:
+                    # Overwriting our "True" value
+                    self.headers["Cookie"] = ""
+                    print "\t[+] Added cookie from previous request"
+                    for cookie in cookies:
+                        # Cookie.output() generates it as a set-cookie
+                        # We need to customize it for our 'Cookie' header
+                        for cookieKey, cookieMorsal in cookie.iteritems():
+                            self.headers["Cookie"] += (str(cookieKey) + "=" + str(cookieMorsal.coded_value) + "; ")
+                    # Remove the trailing semicolon
+                    self.headers["Cookie"] = self.headers["Cookie"][:-2]
+                # If we requested cookies from a previous session
+                # and there were none - remove the Cookie: True header
+                elif self.headers['Cookie'] is True:
+                    self.headers.pop("Cookie")
             # Expand out our headers into a string
             headers = ""
             if self.headers != {}:
@@ -236,7 +246,10 @@ class TestRequest(object):
             else:
                 request = string.replace(request, "#data#", "")
         # Update our raw request with the generated one
+        # TODO: Find out if python has a way to prevent string saftey
         #print request
+        request = request.replace("\\r\\n",CRLF)
+        print request
         self.rawRequest = request
         self.sock.send(request)
         # Make socket non blocking
@@ -294,7 +307,7 @@ class TestRequest(object):
             IP(originDomain)
         except:
             originIsIP = False
-
+        
         for cookieName, cookieMorsals in cookie.iteritems():
             # If the coverdomain is blank or the domain is an IP set the domain to be the origin
             if cookieMorsals['domain'] == "" or originIsIP is True:
@@ -367,17 +380,19 @@ class TestRequest(object):
             currentLine += 1
             # If there is a set-cookie header try processing it.
             if hName == "Set-Cookie" and self.saveCookie is True:
-                hValue = "Test=test_value;expires=Sat, 01-Jan-2000 00:00:00 GMT; domain=chaimsanders.com; path=/;"
+                #hValue = "Test=test_value;expires=Sat, 01-Jan-2000 00:00:00 GMT; domain=chaimsanders.com; path=/;"
+                # We try and make a SimpleCookie out of our string
                 try:
                     cookie = Cookie.SimpleCookie()
                     cookie.load(hValue.lstrip())
                 except Cookie.CookieError:
                     return returnError("There was an error processing the cookie into a SimpleCookie")
                 # if the checkForCookie is invalid then we don't save it
-                if self.checkForCookie(cookie, originDomain) is not False:
+                if self.checkForCookie(cookie, originDomain) is False:
                     return returnError("An invalid cookie was specified")
                 else:
                     cookieJar.append((cookie, originDomain))
+                    print "\t[+] We have added a cookie to the cookiejar"
         data = response[currentLine:]
         return (status,headers,data)
 
@@ -478,9 +493,12 @@ def extractInputTests(inputTestValues,userOverrides):
 
 
 def extractTests(doc,userOverrides):
-    myTests = []
+    myTests = {}
     # Iterate over the different 'named tests' (AKA YAML sections)
     for section, tests in doc.iteritems():
+        # Check if our section exists in myTests, if not add it
+        if section not in myTests.keys():
+            myTests[section] = []
         # Within each YAML section look at each 'test'
         for test in tests:
             ourTest = test['test']
@@ -518,7 +536,7 @@ def extractTests(doc,userOverrides):
             if requests != responses:
                 return returnError("No input/output was found, please specify at least an empty input and out for defaults")
             myTest = Test(testData, metaData)
-            myTests.append(myTest)
+            myTests[section].append(myTest)
     return myTests
 
 
@@ -633,6 +651,7 @@ def parseArgs():
 def main():
 
     myTests = []
+    cookieJar = []
     args = parseArgs()
     wafClass = loadWAFPlugin(args.waf)
     logClass = loadLoggingPlugin(args.waf)
@@ -666,11 +685,17 @@ def main():
         # Extract our tests but override with user defaults as needed
         myTests = extractTests(doc,userOverrides)
         # TODO: check arguments to see what to do
-        # We pass our logger so that we can parse out individual requests/response data
-        for test in myTests:
-            # Specify which logger we want to use to run the test
-            test.setLogger(ourLogger)
-            test.runTests()
+        # for each test suit execute each test
+        for suit in myTests.keys():
+            print "[+] Starting test suite", suit
+            # The cookiejar is test suit depended
+            cookieJar = []
+            # We pass our logger so that we can parse out individual requests/response data
+            for test in myTests[suit]:
+                test.setCookieJar(cookieJar)
+                # Specify which logger we want to use to run the test
+                test.setLogger(ourLogger)
+                test.runTests()
 
 
 if __name__ == "__main__":

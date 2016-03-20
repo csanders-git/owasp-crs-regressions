@@ -1,0 +1,187 @@
+---
+Examples:
+    # In our first example we show that a request will be generated
+    # even if you don't pass any arguments. This should generate a
+    # GET request for / on localhost, port 80. It expects a 200 
+    # response
+    - test:
+        - meta:
+            name: "Example 1 - Trigger Nothing"
+            id: 1
+            author: "Chaim Sanders"
+        - input:
+        - output:
+    # Here we build the same test as was automaticly generated
+    # in our first example, except we specify all of our values
+    # as needed.
+    - test:
+        - meta:
+            name: "Example 2 - Trigger Nothing Again"
+            id: 1
+            author: "Chaim Sanders"
+        - input:
+            protocol: 'http'
+            destAddr: 'localhost'
+            port: '80'
+            method: 'GET'
+            url: '/'
+            headers: [
+                Host: 'localhost',
+                User-Agent: 'OWASP CRS Regression'
+            ]
+            version: 'HTTP/1.1'
+        - output:
+            status: 200
+    # We can also check that different output conditions are true.
+    # For instance in the check below, we trigger a specific OWASP
+    # CRS rule for ModSecurity. The following triggers a number of
+    # ModSecurity XSS rules
+    - test:
+        - meta:
+            name: "Example 3 - Trigger XSS Rules"
+            id: 1
+            author: "Chaim Sanders"
+            enabled: True
+        - input:
+            protocol: 'http'
+            destAddr: 'localhost'
+            port: '80'
+            method: 'GET'
+            url: '/?x="><script>alert(1);</script>'
+            headers: [
+                Host: 'localhost',
+                User-Agent: 'OWASP CRS Regression'
+            ]
+            version: 'HTTP/1.1'
+        - output:
+            status: 200
+            triggers: [941100] 
+            log_contains: 'XSS Attack Detected via Libinjection'
+    # In general you can get fairly specific using the built in 
+    # parsing. It will calculate content-length for you, like
+    # magic.            
+    - test:
+        - meta:
+            name: "Example 4 - POST rule"
+            id: 1
+            author: "Chaim Sanders"
+        - input:
+            method: 'POST'
+            url: '/'
+            data: 'Today is the first day of my life'
+            headers: [
+                Host: 'localhost',
+                User-Agent: 'OWASP CRS Regression'
+            ]
+            version: 'HTTP/1.1'
+        - output:
+            status: 200     
+    # If you need more control, you can always fail back to raw.
+    # requests. These should allow you to do anything you need,
+    # even if it's against all spec.            
+    - test:
+        - meta:
+            name: "Example 5 - Raw Request rule"
+            id: 1
+            author: "Chaim Sanders"
+        - input:
+            protocol: 'http'
+            destAddr: 'localhost'
+            port: '80'
+            rawRequest: |
+                GET / HTTP/1.1 
+                Host: localhost
+                User-Agent: OWASP CRS Regression
+                
+        - output:
+            status: 200
+            
+    # In some cases we'll have a rule that makes sense in
+    # one situation but maybe not others. In these cases 
+    # one can use the 'enabled' key word within the meta 
+    # data section. Setting this to False will disable a 
+    # test            
+    - test:
+        - meta:
+            name: "Example 6 - A Disabled Test"
+            id: 1
+            author: "Chaim Sanders"
+            enabled: False
+        - input:
+            protocol: 'http'
+            destAddr: 'localhost'
+            port: '80'                
+        - output:
+            status: 200         
+               
+    # One other aspect that may be useful is the ability
+    # to save cookies during a given test. This may be 
+    # useful if you are testing complicated websites that
+    # require session cookies to function.       
+    - test:
+        - meta:
+            name: "Example 7a - Saving Cookie State"
+            id: 1
+            author: "Chaim Sanders"
+            enabled: True
+        - input:
+            protocol: 'http'
+            destAddr: 'localhost'
+            port: '80'
+            url: '/test.php'
+            saveCookie: True          
+        - output:
+            status: 200
+    # One other aspect that may be useful is the ability
+    # to save cookies during a given test. This may be 
+    # useful if you are testing complicated websites that
+    # require session cookies to function.       
+    - test:
+        - meta:
+            name: "Example 7b - Using a Saved Cookie"
+            id: 1
+            author: "Chaim Sanders"
+            enabled: True
+        - input:
+            protocol: 'http'
+            destAddr: 'localhost'
+            port: '80'
+            url: '/test.php'
+            headers: [
+                cookie: True
+            ]                    
+        - output:
+            status: 200
+            
+# Different test suite can be specified. Each time
+# a new test suite is declared, any state information
+# is thrown away, such as cookies. Note, suites are 
+# not gaurenteed to execute in a given order.
+Examples2:
+    # In the case below no cookie will be included 
+    # because we have started a new suit and the
+    # cookieJar is empty.
+    - test:
+        - meta:
+            name: "Example 8 - Trigger Nothing"
+            id: 1
+            author: "Chaim Sanders"
+        - input:
+            headers: [
+                cookie: True
+            ]       
+        - output:
+    # There are other things that should automagically
+    # work. This includes deflating and gzip.
+    - test:
+        - meta:
+            name: "Example 8 - Trigger Nothing"
+            id: 1
+            author: "Chaim Sanders"
+        - input:
+            headers: [
+                Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+                Accept-Language: 'en-US,en;q=0.5',
+                Accept-Encoding: 'gzip, deflate'
+            ]       
+        - output:            
