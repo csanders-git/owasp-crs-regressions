@@ -20,6 +20,9 @@ import zlib
 import gzip
 import StringIO
 
+# constants
+BLACK, RED, GREEN, YELLOW, BLUE, MAGENTA, CYAN, WHITE = range(8)
+CRLF = "\r\n"
 
 class Results(object):
     def __init__(self):
@@ -54,6 +57,7 @@ class Test(object):
             print "Test Unnamed"
         
         requestData = ""
+        failedTests = 0
         for subTest in self.subTests:
             if subTest.getType() == "Request":
                 # We reset the results for each request
@@ -83,7 +87,11 @@ class Test(object):
                 subTest.setPageResponse(requestData)
                 subTest.compareResults()
                 if subTest.testPassed():
-                    print "\t[+] Test passed"
+                    print "\t" + printout("[+]",GREEN) + " Test passed"
+                else:
+                    failedTests += 1
+        if failedTests > 0:                    
+            returnError(printout("[-]",RED) + " Failed " + str(failedTests) + " Tests")
                 # Parse checks
                 
                 
@@ -201,7 +209,6 @@ class TestRequest(object):
             self.sock.connect((self.host, self.port))
         except socket.error as msg:
             return returnError(msg)
-        CRLF = "\r\n"
         # If they requested raw HTTP just provide it
         if self.rawRequest != "":
             request = self.rawRequest
@@ -221,7 +228,7 @@ class TestRequest(object):
                 if cookies != [] and self.headers['Cookie'] is True:
                     # Overwriting our "True" value
                     self.headers["Cookie"] = ""
-                    print "\t[+] Added cookie from previous request"
+                    print "\t" + printout("[+]",BLUE) + " Added cookie from previous request"
                     for cookie in cookies:
                         # Cookie.output() generates it as a set-cookie
                         # We need to customize it for our 'Cookie' header
@@ -390,7 +397,7 @@ class TestRequest(object):
                     return returnError("An invalid cookie was specified")
                 else:
                     cookieJar.append((cookie, originDomain))
-                    print "\t[+] We have added a cookie to the cookiejar"
+                    print "\t" + printout("[+]",BLUE) + " We have added a cookie to the cookiejar"
         data = response[currentLine:]
         return (status,headers,data)
 
@@ -424,21 +431,21 @@ class TestResponse(object):
                 if trigger not in self.results.getResults()["triggers"]:    
                     failedToTrigger.append(trigger)
         if len(failedToTrigger) > 0:
-            print "\t[-] Did not trigger ID(s):", ",".join(failedToTrigger)
+            print "\t" + printout("[-]",RED) + " Did not trigger ID(s):", ",".join(failedToTrigger)
             self.passed = False
         # Test if the status was incorrect
         if str(self.results.getResults()["status"]) != str(self.status):
-            print "\t[-] Status outcome (" + self.results.getResults()["status"] +") did not match - Expected",self.status
+            print "\t" + printout("[-]",RED) + " Status outcome (" + self.results.getResults()["status"] +") did not match - Expected",self.status
             self.passed = False
         # If the log doesn't contain the requested information
         if "raw_data" in self.results.getResults().keys() and self.log_contains != None:
             if self.results.getResults()["raw_data"].find(self.log_contains) == -1:
-                print "\t[-] Log did not contain expected data."
+                print "\t" + printout("[-]",RED) + " Log did not contain expected data."
                 self.passed = False
         # Check if the HTML output had the required elements
         if self.pageResponse != "" and self.site_contains != None:
             if(self.pageResponse.find(self.site_contains)) == -1:
-                print "\t[-] HTML output did not contain expected data."
+                print "\t" + printout("[-]",RED) + " HTML output did not contain expected data."
                 self.passed = False
     
     def testPassed(self):
@@ -448,11 +455,33 @@ class TestResponse(object):
         pass
 
 
+
+
+#following from Python cookbook, #475186
+def has_colors(stream):
+    if not hasattr(stream, "isatty"):
+        return False
+    if not stream.isatty():
+        return False # auto color only on TTYs
+    try:
+        import curses
+        curses.setupterm()
+        return curses.tigetnum("colors") > 2
+    except:
+        # guess false in case of error
+        return False
+
+def printout(text, colour=WHITE):
+        if has_colors(sys.stdout):
+                seq = "\x1b[1;%dm" % (30+colour) + text + "\x1b[0m"
+                return seq
+        else:
+                return text
+
 def returnError(errorString):
         errorString = str(errorString) + os.linesep
         sys.stderr.write(errorString)
         sys.exit(1)
-
 
 def extractInputTests(inputTestValues,userOverrides):
     requestArgs = {}  # Generate constructor args.
@@ -699,7 +728,7 @@ def main():
         if args.result == "Run_Tests":
             # for each test suit execute each test
             for suit in myTests.keys():
-                print "[+] Starting test suite", suit
+                print printout("[+]",BLUE) + " Starting test suite", suit
                 # The cookiejar is test suit depended
                 cookieJar = []
                 # We pass our logger so that we can parse out individual requests/response data
