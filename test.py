@@ -632,7 +632,7 @@ def getYAMLData(filePath="."):
 def parseArgs():
     parser = argparse.ArgumentParser(description='OWASP CRS Regression Tests')
     parser.add_argument('-d', '--directory', dest='directory', action='store',
-                       default='.', required=False, help='YAML test directory (default: .)')
+                       default='tests/', required=False, help='YAML test directory (default: tests)')
     parser.add_argument('-l', '--log', dest='log', action='store', default=None,
                        required=False, help='Location of log file, if required')
     parser.add_argument('-f', '--file', dest='file', action='store', default=None,
@@ -650,6 +650,9 @@ def parseArgs():
     if args.waf.lower() not in get_files("wafs"):
         pluglist = "\n\t".join(get_files("wafs"))  
         return returnError("There is no plugin for the WAF you specified, please choose an existing plugin or try using the generic plugin. \nYour available WAF plugins are:\n\t" + pluglist)
+    # Ensure that directory ends with '/'
+    if args.directory[-1] != '/':
+        args.directory += '/'
     return args
 
 
@@ -681,7 +684,7 @@ def main():
     for testFile in yamlFiles:
         try:
             # Load our YAML file
-            fd = open(testFile, 'r')
+            fd = open(str(args.directory) + testFile, 'r')
         except IOError as e:
             return returnError(str(e))
         try:
